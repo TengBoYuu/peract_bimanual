@@ -39,8 +39,11 @@ tmux new-session -d -s ${exp_name}
 #######
 batch_size=2
 # task_name=${"multi_${addition_info}"}
-demo=1
-episode_length=2
+demo=100
+episode_length=25
+# for debug
+# demo=1
+# episode_length=4
 
 tmux select-pane -t 0 
 tmux send-keys "conda activate per2; 
