@@ -25,13 +25,13 @@ replay:
 
 framework:
     log_freq: 100
-    save_freq: 100
+    save_freq: 10000
     train_envs: 1
     replay_ratio: ${replay.batch_size}
     transitions_before_train: 200
     tensorboard_logging: True
     csv_logging: True
-    training_iterations: 40000
+    training_iterations: 100000
     gpu: 0
     env_gpu: 0
     logdir: '/tmp/arm_test/'

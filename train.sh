@@ -1,13 +1,12 @@
 # example to run:
 #       bash train.sh PERACT_BC 0,1 12345 ${exp_name}
 
-
 # set the method name
-method=${1} # PERACT_BC or BIMANUAL_BC
+method=${1} # PERACT_BC or BIMANUAL_PERACT
 
 # set the seed number
 seed="0"
-# set the gpu id for training. we use two gpus for training. you could also use one gpu.
+
 train_gpu=${2:-"0,1"}
 train_gpu_list=(${train_gpu//,/ })
 
@@ -34,10 +33,6 @@ sleep 3s
 echo "start new tmux session: ${exp_name}, running main.py"
 tmux new-session -d -s ${exp_name}
 
-
-
-
-
 #######
 # override hyper-params in config.yaml
 #######
@@ -51,7 +46,6 @@ episode_length=25
 
 tmux select-pane -t 0 
 tmux send-keys "conda activate per2; 
-
 CUDA_VISIBLE_DEVICES=${train_gpu} python train.py method=$method \
         rlbench.task_name=${exp_name} \
         framework.logdir=${logdir} \

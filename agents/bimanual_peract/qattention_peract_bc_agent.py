@@ -711,7 +711,7 @@ class QAttentionPerActBCAgent(Agent):
         self._optimizer.zero_grad()
         total_loss.backward()
         self._optimizer.step()
-
+        torch.cuda.empty_cache()
         self._summaries = {
             "losses/total_loss": total_loss,
             "losses/trans_loss": q_trans_loss.mean(),
