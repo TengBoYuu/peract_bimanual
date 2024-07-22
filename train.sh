@@ -34,6 +34,10 @@ sleep 3s
 echo "start new tmux session: ${exp_name}, running main.py"
 tmux new-session -d -s ${exp_name}
 
+
+
+
+
 #######
 # override hyper-params in config.yaml
 #######
