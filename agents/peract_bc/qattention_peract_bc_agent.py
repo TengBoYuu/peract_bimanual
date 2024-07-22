@@ -17,7 +17,7 @@ from yarr.agents.agent import (
     ImageSummary,
     Summary,
 )
-
+import wandb
 from helpers import utils
 from helpers.utils import visualise_voxel, stack_on_channel
 from voxel.voxel_grid import VoxelGrid
@@ -562,6 +562,16 @@ class QAttentionPerActBCAgent(Agent):
             + (q_collision_loss * self._collision_loss_weight)
         )
         total_loss = combined_losses.mean()
+
+        if step % 10 == 0 :
+                # if self.cfg.use_wandb:
+            wandb.log({
+                'train/grip_loss': q_grip_loss.mean(),
+                'train/trans_loss': q_trans_loss.mean(),
+                'train/rot_loss': q_rot_loss.mean(),
+                'train/collision_loss': q_collision_loss.mean(),
+                'train/total_loss': total_loss,
+            }, step=step)
 
         self._optimizer.zero_grad()
         total_loss.backward()

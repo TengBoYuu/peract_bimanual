@@ -27,7 +27,8 @@ from helpers.clip.core.clip import build_model, load_clip
 
 import transformers
 from helpers.optim.lamb import Lamb
-
+import wandb
+from termcolor import colored, cprint
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 NAME = "QAttentionAgent"
@@ -42,13 +43,14 @@ class QFunction(nn.Module):
         rotation_resolution: float,
         device,
         training,
+        cfg=None
     ):
         super(QFunction, self).__init__()
         self._rotation_resolution = rotation_resolution
         self._voxelizer = voxelizer
         self._bounds_offset = bounds_offset
         self._qnet = perceiver_encoder.to(device)
-
+        self.cfg = cfg
         # distributed training
         if training:
             self._qnet = DDP(self._qnet, device_ids=[device])
@@ -161,6 +163,7 @@ class QAttentionPerActBCAgent(Agent):
         transform_augmentation_rot_resolution: int = 5,
         optimizer_type: str = "adam",
         num_devices: int = 1,
+        cfg=None
     ):
         self._layer = layer
         self._coordinate_bounds = coordinate_bounds
@@ -198,6 +201,7 @@ class QAttentionPerActBCAgent(Agent):
 
         self._cross_entropy_loss = nn.CrossEntropyLoss(reduction="none")
         self._name = NAME + "_layer" + str(self._layer)
+        self.cfg = cfg
 
     def build(self, training: bool, device: torch.device = None):
         self._training = training
@@ -708,6 +712,17 @@ class QAttentionPerActBCAgent(Agent):
         )
         total_loss = combined_losses.mean()
 
+
+        if step % 10 == 0 :
+                # if self.cfg.use_wandb:
+            wandb.log({
+                'train/grip_loss': q_grip_loss.mean(),
+                'train/trans_loss': q_trans_loss.mean(),
+                'train/rot_loss': q_rot_loss.mean(),
+                'train/collision_loss': q_collision_loss.mean(),
+                'train/total_loss': total_loss,
+            }, step=step)
+                    
         self._optimizer.zero_grad()
         total_loss.backward()
         self._optimizer.step()

@@ -19,9 +19,6 @@ use_wandb=True
 train_demo_path="/mnt/disk_1/tengbo/bimanual_data/train"
 
 # we set experiment name as method+date. you could specify it as you like.
-# tasks=[coordinated_push_box]
-# 13 tasks in total, without (e)put_item_in_drawer now
-tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
 addition_info="$(date +%Y%m%d)"
 exp_name=${4:-"${method}_${addition_info}"}
 logdir="/mnt/disk_1/tengbo/peract_bimanual/log"
@@ -39,11 +36,21 @@ tmux new-session -d -s ${exp_name}
 #######
 batch_size=2
 # task_name=${"multi_${addition_info}"}
+
+
+######## Revise frequently
+
+tasks=[coordinated_push_box]
+# 13 tasks in total, without (e)put_item_in_drawer now
+# tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
+
 demo=100
 episode_length=25
 # for debug
 # demo=1
 # episode_length=4
+
+#########
 
 tmux select-pane -t 0 
 tmux send-keys "conda activate per2; 

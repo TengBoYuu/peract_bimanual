@@ -117,6 +117,12 @@ class QAttentionStackAgent(Agent):
             summaries.extend(qa.update_summaries())
         return summaries
 
+    def update_wandb_summaries(self):
+        summaries = {}
+        for qa in self._qattention_agents:
+            summaries.update(qa.update_wandb_summaries())
+        return summaries
+    
     def act_summaries(self) -> List[Summary]:
         s = []
         for qa in self._qattention_agents:
