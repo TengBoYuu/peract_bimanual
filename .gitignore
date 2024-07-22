@@ -3,6 +3,7 @@ log/
 .mp4
 .pt
 output/
+.sh
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

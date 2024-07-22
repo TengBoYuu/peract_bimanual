@@ -455,6 +455,7 @@ class QAttentionPerActBCAgent(Agent):
         prev_layer_bounds = replay_sample.get("prev_layer_bounds", None)
         device = self._device
 
+        rank = device
         bounds = self._coordinate_bounds.to(device)
         if self._layer > 0:
             right_cp = replay_sample[
@@ -712,9 +713,7 @@ class QAttentionPerActBCAgent(Agent):
         )
         total_loss = combined_losses.mean()
 
-
-        if step % 10 == 0 :
-                # if self.cfg.use_wandb:
+        if step % 10 == 0 and rank == 0:
             wandb.log({
                 'train/grip_loss': q_grip_loss.mean(),
                 'train/trans_loss': q_trans_loss.mean(),

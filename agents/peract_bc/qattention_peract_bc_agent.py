@@ -442,7 +442,7 @@ class QAttentionPerActBCAgent(Agent):
         prev_layer_voxel_grid = replay_sample.get("prev_layer_voxel_grid", None)
         prev_layer_bounds = replay_sample.get("prev_layer_bounds", None)
         device = self._device
-
+        rank = device
         bounds = self._coordinate_bounds.to(device)
         if self._layer > 0:
             cp = replay_sample["attention_coordinate_layer_%d" % (self._layer - 1)]
@@ -563,7 +563,7 @@ class QAttentionPerActBCAgent(Agent):
         )
         total_loss = combined_losses.mean()
 
-        if step % 10 == 0 :
+        if step % 10 == 0 and rank==0:
                 # if self.cfg.use_wandb:
             wandb.log({
                 'train/grip_loss': q_grip_loss.mean(),
