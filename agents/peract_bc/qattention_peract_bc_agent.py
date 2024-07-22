@@ -576,6 +576,13 @@ class QAttentionPerActBCAgent(Agent):
             if with_rot_and_grip
             else 0.0,
         }
+        self._wandb_summaries = {
+            'losses/total_loss': total_loss,
+            'losses/trans_loss': q_trans_loss.mean(),
+            'losses/rot_loss': q_rot_loss.mean() if with_rot_and_grip else 0.,
+            'losses/grip_loss': q_grip_loss.mean() if with_rot_and_grip else 0.,
+            'losses/collision_loss': q_collision_loss.mean() if with_rot_and_grip else 0.
+        }
 
         if self._lr_scheduler:
             self._scheduler.step()
@@ -750,6 +757,13 @@ class QAttentionPerActBCAgent(Agent):
                 HistogramSummary("%s/weight/%s" % (self._name, tag), param.data)
             )
 
+        return summaries
+    
+    def update_wandb_summaries(self):
+        summaries = dict()
+
+        for k, v in self._wandb_summaries.items():
+            summaries[k] = v
         return summaries
 
     def act_summaries(self) -> List[Summary]:
