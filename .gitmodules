@@ -1,0 +1,6 @@
+[submodule "third_party/PyRep"]
+	path = third_party/PyRep
+	url = https://github.com/markusgrotz/PyRep.git
+[submodule "third_party/YARR"]
+	path = third_party/YARR
+	url = https://github.com/markusgrotz/YARR.git
