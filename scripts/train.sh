@@ -23,6 +23,7 @@ addition_info="$(date +%Y%m%d)"
 exp_name=${4:-"${method}_${addition_info}"}
 logdir="/mnt/disk_1/tengbo/peract_bimanual/log"
 
+
 # create a tmux window for training
 echo "I am going to kill the session ${exp_name}, are you sure? (5s)"
 sleep 5s
