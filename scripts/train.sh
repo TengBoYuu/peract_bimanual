@@ -40,15 +40,16 @@ batch_size=2
 
 ######## Revise frequently
 
-tasks=[coordinated_push_box]
+# tasks=[coordinated_push_box]
 # 13 tasks in total, without (e)put_item_in_drawer now
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-
-demo=100
-episode_length=25
+tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,handover_item_easy]
+# tasks=[coordinated_push_box,coordinated_lift_ball]
+# demo=100
+# episode_length=25
 # for debug
-# demo=1
-# episode_length=4
+demo=1
+episode_length=4
 
 #########
 
@@ -59,7 +60,6 @@ CUDA_VISIBLE_DEVICES=${train_gpu} python train.py method=$method \
         framework.logdir=${logdir} \
         rlbench.demo_path=${train_demo_path} \
         framework.start_seed=${seed} \
-        framework.use_wandb=${use_wandb} \
         framework.use_wandb=${use_wandb} \
         framework.wandb_group=${exp_name} \
         framework.wandb_name=${exp_name} \
