@@ -733,6 +733,14 @@ class QAttentionPerActBCAgent(Agent):
             else 0.0,
         }
 
+        self._wandb_summaries = {
+            'losses/total_loss': total_loss,
+            'losses/trans_loss': q_trans_loss.mean(),
+            'losses/rot_loss': q_rot_loss.mean() if with_rot_and_grip else 0.,
+            'losses/grip_loss': q_grip_loss.mean() if with_rot_and_grip else 0.,
+            'losses/collision_loss': q_collision_loss.mean() if with_rot_and_grip else 0.
+        }
+
         if self._lr_scheduler:
             self._scheduler.step()
             self._summaries["learning_rate"] = self._scheduler.get_last_lr()[0]
@@ -928,34 +936,34 @@ class QAttentionPerActBCAgent(Agent):
         return ActResult(action, observation_elements=observation_elements, info=info)
 
     def update_summaries(self) -> List[Summary]:
-        voxel_grid = self._vis_voxel_grid.detach().cpu().numpy()
+        # voxel_grid = self._vis_voxel_grid.detach().cpu().numpy()
         summaries = []
-        summaries.append(
-            ImageSummary(
-                "%s/right_update_qattention" % self._name,
-                transforms.ToTensor()(
-                    visualise_voxel(
-                        voxel_grid,
-                        self._right_vis_translation_qvalue.detach().cpu().numpy(),
-                        self._right_vis_max_coordinate.detach().cpu().numpy(),
-                        self._right_vis_gt_coordinate.detach().cpu().numpy(),
-                    )
-                ),
-            )
-        )
-        summaries.append(
-            ImageSummary(
-                "%s/left_update_qattention" % self._name,
-                transforms.ToTensor()(
-                    visualise_voxel(
-                        voxel_grid,
-                        self._left_vis_translation_qvalue.detach().cpu().numpy(),
-                        self._left_vis_max_coordinate.detach().cpu().numpy(),
-                        self._left_vis_gt_coordinate.detach().cpu().numpy(),
-                    )
-                ),
-            )
-        )
+        # summaries.append(
+        #     ImageSummary(
+        #         "%s/right_update_qattention" % self._name,
+        #         transforms.ToTensor()(
+        #             visualise_voxel(
+        #                 voxel_grid,
+        #                 self._right_vis_translation_qvalue.detach().cpu().numpy(),
+        #                 self._right_vis_max_coordinate.detach().cpu().numpy(),
+        #                 self._right_vis_gt_coordinate.detach().cpu().numpy(),
+        #             )
+        #         ),
+        #     )
+        # )
+        # summaries.append(
+        #     ImageSummary(
+        #         "%s/left_update_qattention" % self._name,
+        #         transforms.ToTensor()(
+        #             visualise_voxel(
+        #                 voxel_grid,
+        #                 self._left_vis_translation_qvalue.detach().cpu().numpy(),
+        #                 self._left_vis_max_coordinate.detach().cpu().numpy(),
+        #                 self._left_vis_gt_coordinate.detach().cpu().numpy(),
+        #             )
+        #         ),
+        #     )
+        # )
         for n, v in self._summaries.items():
             summaries.append(ScalarSummary("%s/%s" % (self._name, n), v))
 
@@ -974,30 +982,38 @@ class QAttentionPerActBCAgent(Agent):
 
         return summaries
 
+    def update_wandb_summaries(self):
+        summaries = dict()
+
+        for k, v in self._wandb_summaries.items():
+            summaries[k] = v
+        return summaries
+    
     def act_summaries(self) -> List[Summary]:
-        voxel_grid = self._act_voxel_grid.cpu().numpy()
-        right_q_attention = self._right_act_qvalues.cpu().numpy()
-        right_highlight_coordinate = self._right_act_max_coordinate.cpu().numpy()
-        right_visualization = visualise_voxel(
-            voxel_grid, right_q_attention, right_highlight_coordinate
-        )
+        # voxel_grid = self._act_voxel_grid.cpu().numpy()
+        # right_q_attention = self._right_act_qvalues.cpu().numpy()
+        # right_highlight_coordinate = self._right_act_max_coordinate.cpu().numpy()
+        # right_visualization = visualise_voxel(
+        #     voxel_grid, right_q_attention, right_highlight_coordinate
+        # )
 
-        left_q_attention = self._left_act_qvalues.cpu().numpy()
-        left_highlight_coordinate = self._left_act_max_coordinate.cpu().numpy()
-        left_visualization = visualise_voxel(
-            voxel_grid, left_q_attention, left_highlight_coordinate
-        )
+        # left_q_attention = self._left_act_qvalues.cpu().numpy()
+        # left_highlight_coordinate = self._left_act_max_coordinate.cpu().numpy()
+        # left_visualization = visualise_voxel(
+        #     voxel_grid, left_q_attention, left_highlight_coordinate
+        # )
 
-        return [
-            ImageSummary(
-                f"{self._name}/right_act_Qattention",
-                transforms.ToTensor()(right_visualization),
-            ),
-            ImageSummary(
-                f"{self._name}/left_act_Qattention",
-                transforms.ToTensor()(left_visualization),
-            ),
-        ]
+        # return [
+        #     ImageSummary(
+        #         f"{self._name}/right_act_Qattention",
+        #         transforms.ToTensor()(right_visualization),
+        #     ),
+        #     ImageSummary(
+        #         f"{self._name}/left_act_Qattention",
+        #         transforms.ToTensor()(left_visualization),
+        #     ),
+        # ]
+        return []
 
     def load_weights(self, savedir: str):
         device = (

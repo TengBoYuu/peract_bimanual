@@ -210,6 +210,7 @@ def run_seed(
         load_existing_weights=cfg.framework.load_existing_weights,
         rank=rank,
         world_size=world_size,
+        cfg=cfg
     )
 
     train_runner._on_thread_start = partial(peract_config.config_logging, cfg.framework.logging_level)

@@ -206,14 +206,15 @@ class QAttentionAgent(Agent):
         return transforms.ToTensor()(ret).unsqueeze_(0)
 
     def update_summaries(self) -> List[Summary]:
-        summaries = [
-            ImageSummary(
-                "%s/Q" % NAME,
-                QAttentionAgent.generate_heatmap(
-                    self._qvalues.cpu(), ((self._rgb_observation + 1) / 2.0).cpu()
-                ),
-            )
-        ]
+        # summaries = [
+        #     ImageSummary(
+        #         "%s/Q" % NAME,
+        #         QAttentionAgent.generate_heatmap(
+        #             self._qvalues.cpu(), ((self._rgb_observation + 1) / 2.0).cpu()
+        #         ),
+        #     )
+        # ]
+        summaries = []
         for n, v in self._summaries.items():
             summaries.append(ScalarSummary("%s/%s" % (NAME, n), v))
 
@@ -226,14 +227,15 @@ class QAttentionAgent(Agent):
         return summaries
 
     def act_summaries(self) -> List[Summary]:
-        return [
-            ImageSummary(
-                "%s/Q_act" % NAME,
-                QAttentionAgent.generate_heatmap(
-                    self._act_qvalues.cpu(), ((self._rgb_observation + 1) / 2.0).cpu()
-                ),
-            )
-        ]
+        # return [
+        #     ImageSummary(
+        #         "%s/Q_act" % NAME,
+        #         QAttentionAgent.generate_heatmap(
+        #             self._act_qvalues.cpu(), ((self._rgb_observation + 1) / 2.0).cpu()
+        #         ),
+        #     )
+        # ]
+        return []
 
     def load_weights(self, savedir: str):
         self._q.load_state_dict(

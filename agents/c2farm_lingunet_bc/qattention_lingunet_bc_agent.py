@@ -729,7 +729,7 @@ class QAttentionLingUNetBCAgent(Agent):
                 ),
             )
         ]
-
+        
         for n, v in self._summaries.items():
             summaries.append(ScalarSummary("%s/%s" % (self._name, n), v))
 

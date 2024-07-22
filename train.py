@@ -71,14 +71,14 @@ def main(cfg: DictConfig) -> None:
     # if so, exit the script
     latest_weight = 0
     weights_folder = os.path.join(seed_folder, "weights")
-    if os.path.isdir(weights_folder) and len(os.listdir(weights_folder)) > 0:
-        weights = os.listdir(weights_folder)
-        latest_weight = sorted(map(int, weights))[-1]
-        if latest_weight >= cfg.framework.training_iterations:
-            logging.info(
-                "Agent was already trained for %d iterations. Exiting." % latest_weight
-            )
-            sys.exit(0)
+    # if os.path.isdir(weights_folder) and len(os.listdir(weights_folder)) > 0:
+    #     weights = os.listdir(weights_folder)
+    #     latest_weight = sorted(map(int, weights))[-1]
+    #     if latest_weight >= cfg.framework.training_iterations:
+    #         logging.info(
+    #             "Agent was already trained for %d iterations. Exiting." % latest_weight
+    #         )
+    #         sys.exit(0)
 
 
     with open(os.path.join(seed_folder, "training.log"), "a") as f:
