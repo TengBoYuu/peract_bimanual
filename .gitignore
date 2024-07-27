@@ -4,6 +4,7 @@ log/
 .pt
 output/
 .sh
+scripts/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
