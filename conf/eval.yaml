@@ -8,7 +8,7 @@ rlbench:
     demo_path: /my/demo/path
     episode_length: 25
     cameras: ["over_shoulder_left", "over_shoulder_right", "overhead", "wrist_right", "wrist_left", "front"]
-    camera_resolution: [128, 128]
+    camera_resolution: [256, 256]
     scene_bounds: [-0.3, -0.5, 0.6, 0.7, 0.5, 1.6]
     include_lang_goal_in_obs: True
     time_in_state: True
@@ -21,7 +21,7 @@ framework:
     tensorboard_logging: True
     csv_logging: True
     gpu: 0
-    logdir: '/tmp/arm_test/'
+    logdir: '/mnt/disk_1/tengbo/peract_bimanual/log'
     start_seed: 0
     record_every_n: 5
 

@@ -40,22 +40,22 @@ batch_size=2
 
 
 ######## Revise frequently
+load_existing_weights=True
 
-# tasks=[coordinated_push_box]
+tasks=[coordinated_push_box]
 # 13 tasks in total, without (e)put_item_in_drawer now
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,handover_item_easy]
-# tasks=[coordinated_push_box,coordinated_lift_ball]
 # demo=100
 # episode_length=25
+# save_freq=10000
 # for debug
 demo=1
 episode_length=4
-
+save_freq=10
 #########
 
 tmux select-pane -t 0 
-tmux send-keys "conda activate per2; 
+tmux send-keys "conda activate peract2; 
 CUDA_VISIBLE_DEVICES=${train_gpu} python train.py method=$method \
         rlbench.task_name=${exp_name} \
         framework.logdir=${logdir} \
@@ -69,10 +69,12 @@ CUDA_VISIBLE_DEVICES=${train_gpu} python train.py method=$method \
         ddp.master_port=${port} \
         rlbench.tasks=${tasks} \
         rlbench.demos=${demo} \
-        rlbench.episode_length=${episode_length}
+        rlbench.episode_length=${episode_length} \
+        framework.save_freq=${save_freq} \
+        framework.load_existing_weights=${load_existing_weights}
 
 "
 # remove 0.ckpt
-rm -rf logs/${exp_name}/seed${seed}/weights/0
+# rm -rf logs/${exp_name}/seed${seed}/weights/0
 
 tmux -2 attach-session -t ${exp_name}

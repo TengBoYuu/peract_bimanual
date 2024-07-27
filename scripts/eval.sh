@@ -3,7 +3,7 @@
 
 
 # some params specified by user
-method_name=$1
+method=$1
 # set the seed number
 seed="0"
 # set the gpu id for evaluation. we use one gpu for parallel evaluation.
@@ -16,19 +16,22 @@ exp_name=${3:-"${method}_${addition_info}"}
 
 starttime=`date +'%Y-%m-%d %H:%M:%S'`
 
-camera=True
+camera=False
 gripper_mode='BimanualDiscrete'
 arm_action_mode='BimanualEndEffectorPoseViaPlanning'
 action_mode='BimanualMoveArmThenGripper'
 
-CUDA_VISIBLE_DEVICES=${eval_gpu} xvfb-run -a python eval.py \
+tasks=[coordinated_push_box]
+
+CUDA_VISIBLE_DEVICES=${eval_gpu} xvfb-run -a python eval.py method=$method \
     rlbench.task_name=${exp_name} \
     rlbench.demo_path=${test_demo_path} \
     framework.start_seed=${seed} \
     cinematic_recorder.enabled=${camera} \
     rlbench.gripper_mode=${gripper_mode} \
     rlbench.arm_action_mode=${arm_action_mode} \
-    rlbench.action_mode=${action_mode}
+    rlbench.action_mode=${action_mode} \
+    rlbench.tasks=${tasks} 
 
 
 endtime=`date +'%Y-%m-%d %H:%M:%S'`
