@@ -2,7 +2,7 @@ wandb/
 log/
 .mp4
 .pt
-output/
+outputs/
 .sh
 scripts/
 # Byte-compiled / optimized / DLL files
