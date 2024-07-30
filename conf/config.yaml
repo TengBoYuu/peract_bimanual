@@ -31,7 +31,7 @@ framework:
     transitions_before_train: 200
     tensorboard_logging: True
     csv_logging: True
-    training_iterations: 100000
+    training_iterations: 100001
     gpu: 0
     env_gpu: 0
     logdir: '/tmp/arm_test/'

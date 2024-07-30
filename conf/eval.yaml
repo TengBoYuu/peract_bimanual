@@ -27,7 +27,7 @@ framework:
 
     eval_envs: 1
     eval_from_eps_number: 0
-    eval_episodes: 5
+    eval_episodes: 25
     eval_type: 'last' # or 'best', 'missing', or 'last'
     eval_save_metrics: True
 

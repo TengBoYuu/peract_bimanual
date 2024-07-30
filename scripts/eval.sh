@@ -21,7 +21,9 @@ gripper_mode='BimanualDiscrete'
 arm_action_mode='BimanualEndEffectorPoseViaPlanning'
 action_mode='BimanualMoveArmThenGripper'
 
-tasks=[coordinated_push_box]
+# tasks=[coordinated_push_box]
+tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
+eval_type="last"
 
 CUDA_VISIBLE_DEVICES=${eval_gpu} xvfb-run -a python eval.py method=$method \
     rlbench.task_name=${exp_name} \
@@ -31,7 +33,8 @@ CUDA_VISIBLE_DEVICES=${eval_gpu} xvfb-run -a python eval.py method=$method \
     rlbench.gripper_mode=${gripper_mode} \
     rlbench.arm_action_mode=${arm_action_mode} \
     rlbench.action_mode=${action_mode} \
-    rlbench.tasks=${tasks} 
+    rlbench.tasks=${tasks}  \
+    framework.eval_type=${eval_type}
 
 
 endtime=`date +'%Y-%m-%d %H:%M:%S'`

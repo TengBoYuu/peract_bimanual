@@ -47,7 +47,7 @@ tasks=[coordinated_push_box]
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
 # demo=100
 # episode_length=25
-# save_freq=10000
+# save_freq=1000
 # for debug
 demo=1
 episode_length=4
