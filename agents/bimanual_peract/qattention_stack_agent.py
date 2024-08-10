@@ -198,9 +198,12 @@ class QAttentionStackAgent(Agent):
             s.extend(qa.act_summaries())
         return s
 
+    # 用几张卡训练这里就有几个qa
     def load_weights(self, savedir: str):
         for qa in self._qattention_agents:
+            print(dir(qa))
             qa.load_weights(savedir)
+
 
     def save_weights(self, savedir: str):
         for qa in self._qattention_agents:

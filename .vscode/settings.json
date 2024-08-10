@@ -1,0 +1,6 @@
+{
+    "editor.fontSize": 14,
+    "python.analysis.extraPaths": [
+        "./agents/peract_bc"
+    ]
+}

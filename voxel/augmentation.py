@@ -351,7 +351,9 @@ def apply_se3_augmentation(
         # might take some repeated attempts to find a perturbation that doesn't go out of bounds
         perturb_attempts += 1
         if perturb_attempts > 100:
-            raise Exception("Failing to perturb action and keep it within bounds.")
+            print("perturbation can not within bounds")
+            return action_trans, action_gripper_pose, pcd
+            # raise Exception("Failing to perturb action and keep it within bounds.")
 
         # sample translation perturbation with specified range
         trans_range = (bounds[:, 3:] - bounds[:, :3]) * trans_aug_range.to(

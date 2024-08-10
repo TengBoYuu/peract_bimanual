@@ -92,6 +92,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
         lang_feat_dim, lang_emb_dim, lang_max_seq_len = 1024, 512, 77
 
         # learnable positional encoding
+        # peract2 pos_encoding_with_lang = True / peract = Falses?
         if self.pos_encoding_with_lang:
             self.pos_encoding = nn.Parameter(
                 torch.randn(
@@ -157,7 +158,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
 
         # latent vectors (that are randomly initialized)
         self.latents = nn.Parameter(torch.randn(num_latents, latent_dim))
-
+        
         # encoder cross attention
         self.cross_attend_blocks = nn.ModuleList(
             [

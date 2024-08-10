@@ -1029,27 +1029,114 @@ class QAttentionPerActBCAgent(Agent):
         # ]
         return []
 
+    # def load_weights(self, savedir: str):
+    #     device = (
+    #         self._device
+    #         if not self._training
+    #         else torch.device("cuda:%d" % self._device)
+    #     )
+    #     weight_file = os.path.join(savedir, "%s.pt" % self._name)
+    #     state_dict = torch.load(weight_file, map_location=device)
+
+    #     # load only keys that are in the current model
+    #     merged_state_dict = self._q.state_dict()
+    #     for k, v in state_dict.items():
+    #         if not self._training:
+    #             k = k.replace("_qnet.module", "_qnet")
+    #         if k in merged_state_dict:
+    #             merged_state_dict[k] = v
+    #         else:
+    #             if "_voxelizer" not in k:
+    #                 logging.warning("key %s not found in checkpoint" % k)
+    #     if not self._training:
+    #         # reshape voxelizer weights
+    #         b = merged_state_dict["_voxelizer._ones_max_coords"].shape[0]
+    #         merged_state_dict["_voxelizer._ones_max_coords"] = merged_state_dict[
+    #             "_voxelizer._ones_max_coords"
+    #         ][0:1]
+    #         flat_shape = merged_state_dict["_voxelizer._flat_output"].shape[0]
+    #         merged_state_dict["_voxelizer._flat_output"] = merged_state_dict[
+    #             "_voxelizer._flat_output"
+    #         ][0 : flat_shape // b]
+    #         merged_state_dict["_voxelizer._tiled_batch_indices"] = merged_state_dict[
+    #             "_voxelizer._tiled_batch_indices"
+    #         ][0:1]
+    #         merged_state_dict["_voxelizer._index_grid"] = merged_state_dict[
+    #             "_voxelizer._index_grid"
+    #         ][0:1]
+    #     self._q.load_state_dict(merged_state_dict)
+    #     print("loaded weights from %s" % weight_file)
+
     def load_weights(self, savedir: str):
         device = (
             self._device
             if not self._training
             else torch.device("cuda:%d" % self._device)
         )
+
         weight_file = os.path.join(savedir, "%s.pt" % self._name)
         state_dict = torch.load(weight_file, map_location=device)
-
-        # load only keys that are in the current model
         merged_state_dict = self._q.state_dict()
+
         for k, v in state_dict.items():
             if not self._training:
                 k = k.replace("_qnet.module", "_qnet")
-            if k in merged_state_dict:
+            # cross_attn
+            if k.startswith("_qnet.module.decoder_cross_attn"):
+                right_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_right")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_left")
+                merged_state_dict[left_key] = v
+            # trans_decoder
+            elif k.startswith("_qnet.module.trans_decoder"):
+                right_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.right_trans_decoder")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.left_trans_decoder")
+                merged_state_dict[left_key] = v
+            # dense0
+            elif k.startswith("_qnet.module.dense0"):
+                right_key = k.replace("_qnet.module.dense0", "_qnet.module.right_dense0")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.dense0", "_qnet.module.left_dense0")
+                merged_state_dict[left_key] = v
+            # dense1
+            elif k.startswith("_qnet.module.dense1"):
+                right_key = k.replace("_qnet.module.dense1", "_qnet.module.right_dense1")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.dense1", "_qnet.module.left_dense1")
+                merged_state_dict[left_key] = v
+            # collision
+            elif k.startswith("_qnet.module.rot_grip_collision_ff"):
+                right_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.right_rot_grip_collision_ff")
+                merged_state_dict[right_key] = v
+                
+                left_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.left_rot_grip_collision_ff")
+                merged_state_dict[left_key] = v
+            # proprio
+            elif k == '_qnet.module.proprio_preprocess.linear.weight':
+                new_v = torch.cat([v,v], dim=1)
+                merged_state_dict['_qnet.module.proprio_preprocess.linear.weight'] = new_v
+            # pos_with_lang
+            elif k == "_qnet.module.pos_encoding":
+                lang_max_seq_len = 77
+                spatial_size = v.shape[1]
+                input_dim_before_seq = v.shape[-1]
+                flattened_v = v.view(1, -1, input_dim_before_seq)  # (1, spatial_size**3, self.input_dim_before_seq)
+                new_pos_encoding = torch.randn(1, lang_max_seq_len, input_dim_before_seq, device=device)
+                merged_pos_encoding = torch.cat([flattened_v, new_pos_encoding], dim=1)  # (1, lang_max_seq_len + spatial_size**3, self.input_dim_before_seq)
+                merged_state_dict["_qnet.module.pos_encoding"] = merged_pos_encoding
+            
+            elif k in merged_state_dict:
                 merged_state_dict[k] = v
-            else:
-                if "_voxelizer" not in k:
-                    logging.warning("key %s not found in checkpoint" % k)
+            # else:
+            #     if "_voxelizer" not in k:
+            #         logging.warning("key %s not found in checkpoint" % k)
+
         if not self._training:
-            # reshape voxelizer weights
             b = merged_state_dict["_voxelizer._ones_max_coords"].shape[0]
             merged_state_dict["_voxelizer._ones_max_coords"] = merged_state_dict[
                 "_voxelizer._ones_max_coords"
@@ -1066,6 +1153,182 @@ class QAttentionPerActBCAgent(Agent):
             ][0:1]
         self._q.load_state_dict(merged_state_dict)
         print("loaded weights from %s" % weight_file)
+
+    def load_weights_right(self, savedir: str):
+        device = (
+            self._device
+            if not self._training
+            else torch.device("cuda:%d" % self._device)
+        )
+
+        weight_file = os.path.join(savedir, "%s.pt" % self._name)
+        state_dict = torch.load(weight_file, map_location=device)
+        merged_state_dict = self._q.state_dict()
+
+        for k, v in state_dict.items():
+            if not self._training:
+                k = k.replace("_qnet.module", "_qnet")
+            # cross_attn
+            if k.startswith("_qnet.module.decoder_cross_attn"):
+                right_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_right")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_left")
+                merged_state_dict[left_key] = v
+            # trans_decoder
+            elif k.startswith("_qnet.module.trans_decoder"):
+                right_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.right_trans_decoder")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.left_trans_decoder")
+                merged_state_dict[left_key] = v
+            # dense0
+            elif k.startswith("_qnet.module.dense0"):
+                right_key = k.replace("_qnet.module.dense0", "_qnet.module.right_dense0")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.dense0", "_qnet.module.left_dense0")
+                merged_state_dict[left_key] = v
+            # dense1
+            elif k.startswith("_qnet.module.dense1"):
+                right_key = k.replace("_qnet.module.dense1", "_qnet.module.right_dense1")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.dense1", "_qnet.module.left_dense1")
+                merged_state_dict[left_key] = v
+            # collision
+            elif k.startswith("_qnet.module.rot_grip_collision_ff"):
+                right_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.right_rot_grip_collision_ff")
+                merged_state_dict[right_key] = v
+                
+                left_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.left_rot_grip_collision_ff")
+                merged_state_dict[left_key] = v
+            # proprio
+            elif k == '_qnet.module.proprio_preprocess.linear.weight':
+                new_v = torch.cat([v,v], dim=1)
+                merged_state_dict['_qnet.module.proprio_preprocess.linear.weight'] = new_v
+            # pos_with_lang
+            elif k == "_qnet.module.pos_encoding":
+                lang_max_seq_len = 77
+                spatial_size = v.shape[1]
+                input_dim_before_seq = v.shape[-1]
+                flattened_v = v.view(1, -1, input_dim_before_seq)  # (1, spatial_size**3, self.input_dim_before_seq)
+                new_pos_encoding = torch.randn(1, lang_max_seq_len, input_dim_before_seq, device=device)
+                merged_pos_encoding = torch.cat([flattened_v, new_pos_encoding], dim=1)  # (1, lang_max_seq_len + spatial_size**3, self.input_dim_before_seq)
+                merged_state_dict["_qnet.module.pos_encoding"] = merged_pos_encoding
+            
+            elif k in merged_state_dict:
+                merged_state_dict[k] = v
+            # else:
+            #     if "_voxelizer" not in k:
+            #         logging.warning("key %s not found in checkpoint" % k)
+
+        if not self._training:
+            b = merged_state_dict["_voxelizer._ones_max_coords"].shape[0]
+            merged_state_dict["_voxelizer._ones_max_coords"] = merged_state_dict[
+                "_voxelizer._ones_max_coords"
+            ][0:1]
+            flat_shape = merged_state_dict["_voxelizer._flat_output"].shape[0]
+            merged_state_dict["_voxelizer._flat_output"] = merged_state_dict[
+                "_voxelizer._flat_output"
+            ][0 : flat_shape // b]
+            merged_state_dict["_voxelizer._tiled_batch_indices"] = merged_state_dict[
+                "_voxelizer._tiled_batch_indices"
+            ][0:1]
+            merged_state_dict["_voxelizer._index_grid"] = merged_state_dict[
+                "_voxelizer._index_grid"
+            ][0:1]
+        self._q.load_state_dict(merged_state_dict)
+        print("loaded right weights from %s" % weight_file)
+
+    def load_weights_left(self, savedir: str):
+        device = (
+            self._device
+            if not self._training
+            else torch.device("cuda:%d" % self._device)
+        )
+
+        weight_file = os.path.join(savedir, "%s.pt" % self._name)
+        state_dict = torch.load(weight_file, map_location=device)
+        merged_state_dict = self._q.state_dict()
+
+        for k, v in state_dict.items():
+            if not self._training:
+                k = k.replace("_qnet.module", "_qnet")
+            # cross_attn
+            if k.startswith("_qnet.module.decoder_cross_attn"):
+                right_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_right")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_left")
+                merged_state_dict[left_key] = v
+            # trans_decoder
+            elif k.startswith("_qnet.module.trans_decoder"):
+                right_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.right_trans_decoder")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.left_trans_decoder")
+                merged_state_dict[left_key] = v
+            # dense0
+            elif k.startswith("_qnet.module.dense0"):
+                right_key = k.replace("_qnet.module.dense0", "_qnet.module.right_dense0")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.dense0", "_qnet.module.left_dense0")
+                merged_state_dict[left_key] = v
+            # dense1
+            elif k.startswith("_qnet.module.dense1"):
+                right_key = k.replace("_qnet.module.dense1", "_qnet.module.right_dense1")
+                merged_state_dict[right_key] = v
+
+                left_key = k.replace("_qnet.module.dense1", "_qnet.module.left_dense1")
+                merged_state_dict[left_key] = v
+            # collision
+            elif k.startswith("_qnet.module.rot_grip_collision_ff"):
+                right_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.right_rot_grip_collision_ff")
+                merged_state_dict[right_key] = v
+                
+                left_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.left_rot_grip_collision_ff")
+                merged_state_dict[left_key] = v
+            # proprio
+            elif k == '_qnet.module.proprio_preprocess.linear.weight':
+                new_v = torch.cat([v,v], dim=1)
+                merged_state_dict['_qnet.module.proprio_preprocess.linear.weight'] = new_v
+            # pos_with_lang
+            elif k == "_qnet.module.pos_encoding":
+                lang_max_seq_len = 77
+                spatial_size = v.shape[1]
+                input_dim_before_seq = v.shape[-1]
+                flattened_v = v.view(1, -1, input_dim_before_seq)  # (1, spatial_size**3, self.input_dim_before_seq)
+                new_pos_encoding = torch.randn(1, lang_max_seq_len, input_dim_before_seq, device=device)
+                merged_pos_encoding = torch.cat([flattened_v, new_pos_encoding], dim=1)  # (1, lang_max_seq_len + spatial_size**3, self.input_dim_before_seq)
+                merged_state_dict["_qnet.module.pos_encoding"] = merged_pos_encoding
+            
+            elif k in merged_state_dict:
+                merged_state_dict[k] = v
+            # else:
+            #     if "_voxelizer" not in k:
+            #         logging.warning("key %s not found in checkpoint" % k)
+
+        if not self._training:
+            b = merged_state_dict["_voxelizer._ones_max_coords"].shape[0]
+            merged_state_dict["_voxelizer._ones_max_coords"] = merged_state_dict[
+                "_voxelizer._ones_max_coords"
+            ][0:1]
+            flat_shape = merged_state_dict["_voxelizer._flat_output"].shape[0]
+            merged_state_dict["_voxelizer._flat_output"] = merged_state_dict[
+                "_voxelizer._flat_output"
+            ][0 : flat_shape // b]
+            merged_state_dict["_voxelizer._tiled_batch_indices"] = merged_state_dict[
+                "_voxelizer._tiled_batch_indices"
+            ][0:1]
+            merged_state_dict["_voxelizer._index_grid"] = merged_state_dict[
+                "_voxelizer._index_grid"
+            ][0:1]
+        self._q.load_state_dict(merged_state_dict)
+        print("loaded left weights from %s" % weight_file)
+
+
 
     def save_weights(self, savedir: str):
         torch.save(self._q.state_dict(), os.path.join(savedir, "%s.pt" % self._name))
