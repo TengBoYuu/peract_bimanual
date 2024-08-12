@@ -2,7 +2,7 @@ import os
 import pickle
 import gc
 from typing import List
-import filecmp
+
 import hydra
 import numpy as np
 import torch
@@ -22,7 +22,7 @@ from agents import replay_utils
 
 import peract_config
 from functools import partial
-import copy
+
 def run_seed(
     rank,
     cfg: DictConfig,
@@ -40,8 +40,7 @@ def run_seed(
     cams = cfg.rlbench.cameras
 
     # task_folder = "debug" if len(tasks) > 1 else tasks[0] 
-    task_folder = "multi" if len(tasks) > 1 else tasks[0] 
-    # task_folder = cfg.rlbench.task_name
+    task_folder = cfg.rlbench.task_name
     replay_path = os.path.join(
         cfg.replay.path, task_folder, cfg.method.name, "seed%d" % seed
     )
@@ -170,29 +169,56 @@ def run_seed(
 
 
     elif cfg.method.name.startswith("BIMANUAL_PERACT") or cfg.method.name.startswith("RVT") or cfg.method.name.startswith("PERACT_BC"):
-        print(replay_path)
-        if os.path.exists(replay_path):
-            print("Replay files found. Loading...")
-            # 初始化 Replay Buffer
-            # replay_buffer = TaskUniformReplayBuffer()
-            replay_buffer = replay_utils.create_replay(cfg, replay_path)
-            # 加载所有的 Replay 文件
-            replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
-            for replay_file in replay_files:
-                print(replay_file)
-                with open(replay_file, 'rb') as f:
-                    replay_data = pickle.load(f)
-                replay_buffer.load_add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
-        else:
-            print("No replay files found. Creating replay...")
-            replay_buffer = replay_utils.create_replay(cfg, replay_path)
-            replay_utils.fill_multi_task_replay(
-                cfg,
-                obs_config,
-                rank,
-                replay_buffer,
-                tasks
-            )
+        # if os.path.isfile(replay_path):
+        #     print("Replay files found. Loading...")
+        #     # 初始化 Replay Buffer
+        #     # replay_buffer = TaskUniformReplayBuffer()
+        #     replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        #     # 加载所有的 Replay 文件
+        #     replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
+        #     for replay_file in replay_files:
+        #         with open(replay_file, 'rb') as f:
+        #             replay_data = pickle.load(f)
+        #             replay_buffer._add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
+        # else:
+        #     print("No replay files found. Creating replay...")
+        #     replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        #     replay_utils.fill_multi_task_replay(
+        #         cfg,
+        #         obs_config,
+        #         rank,
+        #         replay_buffer,
+        #         tasks
+        #     )
+
+        output_path = "/mnt/disk_1/tengbo/replay/debug1/PERACT_BC/seed0"
+        os.makedirs(output_path, exist_ok=True)
+        print("Replay files found. Loading...")
+        # 初始化 Replay Buffer
+        # replay_buffer = TaskUniformReplayBuffer()
+        replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        # 加载所有的 Replay 文件
+        replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
+        for replay_file in replay_files:
+            with open(replay_file, 'rb') as f:
+                replay_data = pickle.load(f)
+                replay_buffer._add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
+                output_file_path = os.path.join(output_path, os.path.basename(replay_file))
+                with open(output_file_path, 'wb') as out_f:
+                    pickle.dump(replay_data, out_f)
+
+        replay_buffer1 = replay_buffer
+        print("No replay files found. Creating replay...")
+        replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        replay_utils.fill_multi_task_replay(
+            cfg,
+            obs_config,
+            rank,
+            replay_buffer,
+            tasks
+        )
+        compare_replay_buffers(replay_buffer1, replay_buffer)
+
 
     elif cfg.method.name == "PERACT_RL":
         raise NotImplementedError("PERACT_RL is not supported yet")
@@ -236,3 +262,61 @@ def run_seed(
     del agent
     gc.collect()
     torch.cuda.empty_cache()
+
+
+import numpy as np
+
+import numpy as np
+
+def compare_replay_buffers(buffer1, buffer2, tol=1e-5, output_file='comparison_results.txt'):
+    keys1 = list(buffer1._store.keys())
+    keys2 = list(buffer2._store.keys())
+
+    differences = []
+
+    if keys1 != keys2:
+        differences.append("Buffers have different keys.")
+        differences.append(f"Buffer1 keys: {keys1}")
+        differences.append(f"Buffer2 keys: {keys2}")
+
+    all_match = True
+
+    for key in keys1:
+        if key not in buffer2._store:
+            differences.append(f"Key {key} found in Buffer1 but not in Buffer2.")
+            all_match = False
+            continue
+
+        data1 = buffer1._store[key]
+        data2 = buffer2._store[key]
+
+        if data1.dtype in [np.float32, np.float64]:
+            if not np.allclose(data1, data2, atol=tol):
+                differences.append(f"Data mismatch found in key: {key}")
+                mismatches = np.where(np.abs(data1 - data2) > tol)
+                for idx in zip(*mismatches):
+                    differences.append(f"Index {idx}: Buffer1 has {data1[idx]}, Buffer2 has {data2[idx]}")
+                all_match = False
+        else:
+            if not np.array_equal(data1, data2):
+                differences.append(f"Data mismatch found in key: {key}")
+                mismatches = np.where(data1 != data2)
+                for idx in zip(*mismatches):
+                    differences.append(f"Index {idx}: Buffer1 has {data1[idx]}, Buffer2 has {data2[idx]}")
+                all_match = False
+
+    if all_match:
+        differences.append("Replay buffers are identical.")
+    else:
+        differences.append("Replay buffers are not identical.")
+
+    # 将结果输出到文本文件中
+    with open(output_file, 'w') as f:
+        for line in differences:
+            f.write(line + '\n')
+    
+    # 也可以选择打印出结果
+    for line in differences:
+        print(line)
+
+    return all_match

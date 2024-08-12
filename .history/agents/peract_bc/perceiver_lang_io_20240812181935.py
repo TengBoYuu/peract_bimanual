@@ -362,8 +362,10 @@ class PerceiverVoxelLangEncoder(nn.Module):
             ins = ins + self.pos_encoding
         
         if options is not None:
-            selected_option_expanded = options.squeeze(1)  # [B, 128]
-            selected_option_expanded = selected_option_expanded.unsqueeze(1).expand(ins.shape[0], ins.shape[1], options.shape[-1])  # [B,8077,128]
+            print('----------------------options--------------------', options.shape)
+            selected_option_expanded = options.squeeze(0)  # [B, 128]
+            print('----------------------select--------------------', selected_option_expanded.shape)
+            selected_option_expanded = selected_option_expanded.unsqueeze(0).expand(ins.shape[0], ins.shape[1], options.shape[-1])  # [B,8077,128]
             ins = ins + selected_option_expanded  # [B,8077,128]
         # batchify latents
         x = repeat(self.latents, "n d -> b n d", b=b)

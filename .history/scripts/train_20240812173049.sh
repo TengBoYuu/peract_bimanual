@@ -36,19 +36,19 @@ tmux new-session -d -s ${exp_name}
 #######
 # override hyper-params in config.yaml
 #######
-# batch_size=2
-# skill_predictor=False
-
 batch_size=2
-skill_predictor=True
+skill_predictor=False
+
+# batch_size=1
+# skill_predictor=True
 
 # task_name=${"multi_${addition_info}"}
 
 
 ######## Revise frequently
-load_existing_weights=False
+load_existing_weights=True
 
-use_pre=True
+use_pre=False
 # 13 tasks in total, without (e)put_item_in_drawer now
 tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
 demo=100

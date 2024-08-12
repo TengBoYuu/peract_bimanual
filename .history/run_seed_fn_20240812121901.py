@@ -39,8 +39,8 @@ def run_seed(
     tasks = cfg.rlbench.tasks
     cams = cfg.rlbench.cameras
 
-    # task_folder = "debug" if len(tasks) > 1 else tasks[0] 
-    task_folder = "multi" if len(tasks) > 1 else tasks[0] 
+    task_folder = "debug" if len(tasks) > 1 else tasks[0] 
+    # task_folder = "multi" if len(tasks) > 1 else tasks[0] 
     # task_folder = cfg.rlbench.task_name
     replay_path = os.path.join(
         cfg.replay.path, task_folder, cfg.method.name, "seed%d" % seed
@@ -171,7 +171,7 @@ def run_seed(
 
     elif cfg.method.name.startswith("BIMANUAL_PERACT") or cfg.method.name.startswith("RVT") or cfg.method.name.startswith("PERACT_BC"):
         print(replay_path)
-        if os.path.exists(replay_path):
+        if os.listdir(replay_path):
             print("Replay files found. Loading...")
             # 初始化 Replay Buffer
             # replay_buffer = TaskUniformReplayBuffer()
@@ -182,7 +182,7 @@ def run_seed(
                 print(replay_file)
                 with open(replay_file, 'rb') as f:
                     replay_data = pickle.load(f)
-                replay_buffer.load_add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
+                    replay_buffer._add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
         else:
             print("No replay files found. Creating replay...")
             replay_buffer = replay_utils.create_replay(cfg, replay_path)
@@ -193,6 +193,39 @@ def run_seed(
                 replay_buffer,
                 tasks
             )
+
+        output_path = "/mnt/disk_1/tengbo/replay/debug1/PERACT_BC/seed0"
+        os.makedirs(output_path, exist_ok=True)
+        print("Replay files found. Loading...")
+        # 初始化 Replay Buffer
+        # replay_buffer = TaskUniformReplayBuffer()
+        replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
+        for replay_file in replay_files:
+            with open(replay_file, 'rb') as f:
+                replay_data = pickle.load(f)
+
+            output_file_path_before = os.path.join(output_path, os.path.basename(replay_file))
+            print(f"Loaded {replay_file} into {output_file_path_before}")
+
+            with open(output_file_path_before, 'wb') as out_f:
+                pickle.dump(replay_data, out_f)
+
+            # 直接对比两个文件的内容
+            assert filecmp.cmp(replay_file, output_file_path_before, shallow=False), \
+                f"Error: Files {replay_file} and {output_file_path_before} differ!"
+            
+
+        print("No replay files found. Creating replay...")
+        replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        replay_utils.fill_multi_task_replay(
+            cfg,
+            obs_config,
+            rank,
+            replay_buffer,
+            tasks
+        )
+
 
     elif cfg.method.name == "PERACT_RL":
         raise NotImplementedError("PERACT_RL is not supported yet")

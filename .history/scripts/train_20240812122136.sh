@@ -22,8 +22,8 @@ train_demo_path="/mnt/disk_1/tengbo/bimanual_data/train"
 addition_info="$(date +%Y%m%d)"
 exp_name=${4:-"${method}_${addition_info}"}
 logdir="/mnt/disk_1/tengbo/peract_bimanual/log"
-replay_path="/mnt/disk_1/tengbo/replay/"
-# replay_path="/mnt/disk_1/tengbo/replay/"
+# replay_path="/mnt/disk_2/tengbo/replay/"
+replay_path="/mnt/disk_1/tengbo/peract_bimanual/replay/"
 
 # create a tmux window for training
 echo "I am going to kill the session ${exp_name}, are you sure? (5s)"
@@ -36,11 +36,11 @@ tmux new-session -d -s ${exp_name}
 #######
 # override hyper-params in config.yaml
 #######
-# batch_size=2
-# skill_predictor=False
-
 batch_size=2
-skill_predictor=True
+skill_predictor=False
+
+# batch_size=1
+# skill_predictor=True
 
 # task_name=${"multi_${addition_info}"}
 
@@ -48,21 +48,21 @@ skill_predictor=True
 ######## Revise frequently
 load_existing_weights=False
 
-use_pre=True
+use_pre=False
 # 13 tasks in total, without (e)put_item_in_drawer now
-tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-demo=100
-episode_length=25
-save_freq=10000
+# tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
+# demo=100
+# episode_length=25
+# save_freq=10000
 
 # for debug
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball]
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-# tasks=[coordinated_push_box,bimanual_pick_laptop]
-# demo=1
-# episode_length=4
-# save_freq=1000
-# wandb_project="debug"
+tasks=[coordinated_push_box,bimanual_pick_laptop]
+demo=1
+episode_length=4
+save_freq=1000
+wandb_project="debug"
 #########
 
 tmux select-pane -t 0 

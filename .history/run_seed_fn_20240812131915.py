@@ -170,29 +170,60 @@ def run_seed(
 
 
     elif cfg.method.name.startswith("BIMANUAL_PERACT") or cfg.method.name.startswith("RVT") or cfg.method.name.startswith("PERACT_BC"):
-        print(replay_path)
+        # print(replay_path)
+        # if os.path.exists(replay_path):
+        #     print("Replay files found. Loading...")
+        #     # 初始化 Replay Buffer
+        #     # replay_buffer = TaskUniformReplayBuffer()
+        #     replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        #     # 加载所有的 Replay 文件
+        #     replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
+        #     for replay_file in replay_files:
+        #         print(replay_file)
+        #         with open(replay_file, 'rb') as f:
+        #             replay_data = pickle.load(f)
+        #         replay_buffer.load_add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
+        #     print(replay_buffer)
+        # else:
+        #     print("No replay files found. Creating replay...")
+        #     replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        #     replay_utils.fill_multi_task_replay(
+        #         cfg,
+        #         obs_config,
+        #         rank,
+        #         replay_buffer,
+        #         tasks
+        #     )
+
+        # 初始化两个 replay_buffer
+        replay_buffer1 = None
+        replay_buffer2 = None
+
+        # 加载现有文件夹中的数据
         if os.path.exists(replay_path):
             print("Replay files found. Loading...")
-            # 初始化 Replay Buffer
-            # replay_buffer = TaskUniformReplayBuffer()
-            replay_buffer = replay_utils.create_replay(cfg, replay_path)
-            # 加载所有的 Replay 文件
+            replay_buffer1 = replay_utils.create_replay(cfg, replay_path)
             replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
             for replay_file in replay_files:
                 print(replay_file)
                 with open(replay_file, 'rb') as f:
                     replay_data = pickle.load(f)
-                replay_buffer.load_add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
+                replay_buffer1.load_add(replay_data)
+            print("Replay buffer loaded from existing files.")
         else:
             print("No replay files found. Creating replay...")
-            replay_buffer = replay_utils.create_replay(cfg, replay_path)
-            replay_utils.fill_multi_task_replay(
-                cfg,
-                obs_config,
-                rank,
-                replay_buffer,
-                tasks
-            )
+            replay_buffer1 = replay_utils.create_replay(cfg, replay_path)
+            replay_utils.fill_multi_task_replay(cfg, obs_config, rank, replay_buffer1, tasks)
+            print("Replay buffer created from scratch.")
+
+        # 重新创建新的 replay_buffer
+        replay_buffer2 = replay_utils.create_replay(cfg, replay_path)
+        replay_utils.fill_multi_task_replay(cfg, obs_config, rank, replay_buffer2, tasks)
+        print("New replay buffer created.")
+
+        # 比较两个缓冲区的内容
+        compare_buffers(replay_buffer1, replay_buffer2)
+
 
     elif cfg.method.name == "PERACT_RL":
         raise NotImplementedError("PERACT_RL is not supported yet")

@@ -39,7 +39,7 @@ tmux new-session -d -s ${exp_name}
 # batch_size=2
 # skill_predictor=False
 
-batch_size=2
+batch_size=1
 skill_predictor=True
 
 # task_name=${"multi_${addition_info}"}

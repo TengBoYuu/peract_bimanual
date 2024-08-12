@@ -39,8 +39,8 @@ def run_seed(
     tasks = cfg.rlbench.tasks
     cams = cfg.rlbench.cameras
 
-    # task_folder = "debug" if len(tasks) > 1 else tasks[0] 
-    task_folder = "multi" if len(tasks) > 1 else tasks[0] 
+    task_folder = "debug" if len(tasks) > 1 else tasks[0] 
+    # task_folder = "multi" if len(tasks) > 1 else tasks[0] 
     # task_folder = cfg.rlbench.task_name
     replay_path = os.path.join(
         cfg.replay.path, task_folder, cfg.method.name, "seed%d" % seed
@@ -170,29 +170,60 @@ def run_seed(
 
 
     elif cfg.method.name.startswith("BIMANUAL_PERACT") or cfg.method.name.startswith("RVT") or cfg.method.name.startswith("PERACT_BC"):
-        print(replay_path)
+        # print(replay_path)
+        # if os.path.exists(replay_path):
+        #     print("Replay files found. Loading...")
+        #     # 初始化 Replay Buffer
+        #     # replay_buffer = TaskUniformReplayBuffer()
+        #     replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        #     # 加载所有的 Replay 文件
+        #     replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
+        #     for replay_file in replay_files:
+        #         print(replay_file)
+        #         with open(replay_file, 'rb') as f:
+        #             replay_data = pickle.load(f)
+        #         replay_buffer.load_add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
+        #     print(replay_buffer)
+        # else:
+        #     print("No replay files found. Creating replay...")
+        #     replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        #     replay_utils.fill_multi_task_replay(
+        #         cfg,
+        #         obs_config,
+        #         rank,
+        #         replay_buffer,
+        #         tasks
+        #     )
+
+        # 初始化两个 replay_buffer
+        replay_buffer1 = None
+        replay_buffer2 = None
+
+        # 加载现有文件夹中的数据
         if os.path.exists(replay_path):
             print("Replay files found. Loading...")
-            # 初始化 Replay Buffer
-            # replay_buffer = TaskUniformReplayBuffer()
-            replay_buffer = replay_utils.create_replay(cfg, replay_path)
-            # 加载所有的 Replay 文件
+            replay_buffer1 = replay_utils.create_replay(cfg, replay_path)
             replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
             for replay_file in replay_files:
                 print(replay_file)
                 with open(replay_file, 'rb') as f:
                     replay_data = pickle.load(f)
-                replay_buffer.load_add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
+                replay_buffer1.load_add(replay_data)
+            print("Replay buffer loaded from existing files.")
         else:
             print("No replay files found. Creating replay...")
-            replay_buffer = replay_utils.create_replay(cfg, replay_path)
-            replay_utils.fill_multi_task_replay(
-                cfg,
-                obs_config,
-                rank,
-                replay_buffer,
-                tasks
-            )
+            replay_buffer1 = replay_utils.create_replay(cfg, replay_path)
+            replay_utils.fill_multi_task_replay(cfg, obs_config, rank, replay_buffer1, tasks)
+            print("Replay buffer created from scratch.")
+
+        # 重新创建新的 replay_buffer
+        replay_buffer2 = replay_utils.create_replay(cfg, replay_path)
+        replay_utils.fill_multi_task_replay(cfg, obs_config, rank, replay_buffer2, tasks)
+        print("New replay buffer created.")
+
+        # 比较两个缓冲区的内容
+        compare_buffers(replay_buffer1, replay_buffer2)
+
 
     elif cfg.method.name == "PERACT_RL":
         raise NotImplementedError("PERACT_RL is not supported yet")
@@ -236,3 +267,26 @@ def run_seed(
     del agent
     gc.collect()
     torch.cuda.empty_cache()
+
+def compare_buffers(buffer1, buffer2):
+    # 比较两个缓冲区的长度
+    if buffer1._add_count.value != buffer2._add_count.value:
+        print("Different number of transitions.")
+    
+    # 比较存储的键
+    keys1 = set(buffer1._store.keys())
+    keys2 = set(buffer2._store.keys())
+    
+    if keys1 != keys2:
+        print("Different keys in buffers.")
+        print("Buffer1 keys:", keys1)
+        print("Buffer2 keys:", keys2)
+    else:
+        print("Both buffers have the same keys.")
+
+    # 比较每个键对应的数据
+    for key in keys1:
+        data1 = buffer1._store[key]
+        data2 = buffer2._store[key]
+        if not np.array_equal(data1, data2):
+            print(f"Data mismatch found for key '{key}'.")

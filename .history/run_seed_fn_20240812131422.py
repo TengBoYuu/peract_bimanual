@@ -183,6 +183,7 @@ def run_seed(
                 with open(replay_file, 'rb') as f:
                     replay_data = pickle.load(f)
                 replay_buffer.load_add(replay_data)  # 调用 _add 方法将数据加载到缓冲区中
+            print(replay_buffer)
         else:
             print("No replay files found. Creating replay...")
             replay_buffer = replay_utils.create_replay(cfg, replay_path)
@@ -193,6 +194,39 @@ def run_seed(
                 replay_buffer,
                 tasks
             )
+
+        # output_path = "/mnt/disk_1/tengbo/replay/debug1/PERACT_BC/seed0"
+        # os.makedirs(output_path, exist_ok=True)
+        # print("Replay files found. Loading...")
+        # # 初始化 Replay Buffer
+        # # replay_buffer = TaskUniformReplayBuffer()
+        # replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        # replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
+        # for replay_file in replay_files:
+        #     with open(replay_file, 'rb') as f:
+        #         replay_data = pickle.load(f)
+
+        #     output_file_path_before = os.path.join(output_path, os.path.basename(replay_file))
+        #     print(f"Loaded {replay_file} into {output_file_path_before}")
+
+        #     with open(output_file_path_before, 'wb') as out_f:
+        #         pickle.dump(replay_data, out_f)
+
+        #     # 直接对比两个文件的内容
+        #     assert filecmp.cmp(replay_file, output_file_path_before, shallow=False), \
+        #         f"Error: Files {replay_file} and {output_file_path_before} differ!"
+            
+
+        # print("No replay files found. Creating replay...")
+        # replay_buffer = replay_utils.create_replay(cfg, replay_path)
+        # replay_utils.fill_multi_task_replay(
+        #     cfg,
+        #     obs_config,
+        #     rank,
+        #     replay_buffer,
+        #     tasks
+        # )
+
 
     elif cfg.method.name == "PERACT_RL":
         raise NotImplementedError("PERACT_RL is not supported yet")
