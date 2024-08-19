@@ -46,7 +46,7 @@ skill_predictor=False
 
 
 ######## Revise frequently
-load_existing_weights=True
+load_existing_weights=False
 
 use_pre=False
 # 13 tasks in total, without (e)put_item_in_drawer now

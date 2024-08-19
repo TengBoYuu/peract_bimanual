@@ -10,7 +10,7 @@ from yarr.agents.agent import Agent
 
 
 supported_agents = {"leader_follower": ("PERACT_BC", "RVT"), 
-                    "independent" : ("PERACT_BC", "RVT", "DIFFUSER_ACTOR"),
+                    "independent" : ("PERACT_BC", "RVT", "DIFFUSION"),
                     "bimanual": ("BIMANUAL_PERACT", "ACT_BC_LANG"),
                     "unimanual": ()}
 

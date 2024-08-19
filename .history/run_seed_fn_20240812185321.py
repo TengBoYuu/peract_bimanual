@@ -40,7 +40,7 @@ def run_seed(
     cams = cfg.rlbench.cameras
 
     # task_folder = "debug" if len(tasks) > 1 else tasks[0] 
-    task_folder = cfg.replay.task_folder if len(tasks) > 1 else tasks[0] 
+    task_folder = "multi" if len(tasks) > 1 else tasks[0] 
     # task_folder = cfg.rlbench.task_name
     replay_path = os.path.join(
         cfg.replay.path, task_folder, cfg.method.name, "seed%d" % seed
@@ -169,7 +169,7 @@ def run_seed(
         )
 
 
-    elif cfg.method.name.startswith("BIMANUAL_PERACT") or cfg.method.name.startswith("RVT") or cfg.method.name.startswith("PERACT_BC") or cfg.method.name.startswith("DIFFUSER_ACTOR"):
+    elif cfg.method.name.startswith("BIMANUAL_PERACT") or cfg.method.name.startswith("RVT") or cfg.method.name.startswith("PERACT_BC"):
         print(replay_path)
         if os.path.exists(replay_path):
             print("Replay files found. Loading...")

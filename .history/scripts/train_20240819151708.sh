@@ -59,12 +59,12 @@ use_pre=False
 # for debug
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball]
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-tasks=[coordinated_push_box,bimanual_pick_laptop]
-demo=1
-episode_length=4
-save_freq=1000
-wandb_project="debug"
-task_folder="debug"
+# tasks=[coordinated_push_box,bimanual_pick_laptop]
+# demo=1
+# episode_length=4
+# save_freq=1000
+# wandb_project="debug"
+# task_folder="debug"
 #########
 
 tmux select-pane -t 0 

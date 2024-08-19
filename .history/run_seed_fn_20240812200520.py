@@ -169,7 +169,7 @@ def run_seed(
         )
 
 
-    elif cfg.method.name.startswith("BIMANUAL_PERACT") or cfg.method.name.startswith("RVT") or cfg.method.name.startswith("PERACT_BC") or cfg.method.name.startswith("DIFFUSER_ACTOR"):
+    elif cfg.method.name.startswith("BIMANUAL_PERACT") or cfg.method.name.startswith("RVT") or cfg.method.name.startswith("PERACT_BC"):
         print(replay_path)
         if os.path.exists(replay_path):
             print("Replay files found. Loading...")

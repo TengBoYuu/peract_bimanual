@@ -10,7 +10,7 @@ from yarr.agents.agent import Agent
 
 
 supported_agents = {"leader_follower": ("PERACT_BC", "RVT"), 
-                    "independent" : ("PERACT_BC", "RVT", "DIFFUSER_ACTOR"),
+                    "independent" : ("PERACT_BC", "RVT", "DIFFUSION"),
                     "bimanual": ("BIMANUAL_PERACT", "ACT_BC_LANG"),
                     "unimanual": ()}
 
@@ -85,8 +85,6 @@ def agent_fn_by_name(method_name: str) -> Agent:
         return peract_bc.launch_utils.create_agent    
     elif method_name.startswith("DIFFUSER_ACTOR"):
         from agents import diffuser_actor
-
-        return diffuser_actor.launch_utils.create_agent
     elif method_name.startswith("BIMANUAL_PERACT"):
         from agents import bimanual_peract
         

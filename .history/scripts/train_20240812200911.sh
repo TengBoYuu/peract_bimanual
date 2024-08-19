@@ -36,17 +36,17 @@ tmux new-session -d -s ${exp_name}
 #######
 # override hyper-params in config.yaml
 #######
-batch_size=2
-skill_predictor=False
-
 # batch_size=2
-# skill_predictor=True
+# skill_predictor=False
+
+batch_size=2
+skill_predictor=True
 
 # task_name=${"multi_${addition_info}"}
 
 
 ######## Revise frequently
-load_existing_weights=True
+load_existing_weights=False
 
 use_pre=False
 # 13 tasks in total, without (e)put_item_in_drawer now
