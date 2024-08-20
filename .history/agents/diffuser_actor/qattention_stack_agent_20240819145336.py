@@ -6,7 +6,7 @@ from yarr.agents.agent import Agent, ActResult, Summary
 import numpy as np
 
 from helpers import utils
-from agents.diffuser_actor.qattention_diffuser_actor_agent import QAttentionDiffuserActorAgent
+from agents.peract_bc.qattention_peract_bc_agent import QAttentionPerActBCAgent
 
 NAME = "QAttentionStackAgent"
 
@@ -14,7 +14,7 @@ NAME = "QAttentionStackAgent"
 class QAttentionStackAgent(Agent):
     def __init__(
         self,
-        qattention_agents: List[QAttentionDiffuserActorAgent],
+        qattention_agents: List[QAttentionPerActBCAgent],
         rotation_resolution: float,
         camera_names: List[str],
         rotation_prediction_depth: int = 0,

@@ -5,7 +5,7 @@
 
 from helpers.preprocess_agent import PreprocessAgent
 from agents.diffuser_actor.perceiver_lang_io import PerceiverVoxelLangEncoder
-from agents.diffuser_actor.qattention_diffuser_actor_agent import QAttentionDiffuserActorAgent
+from agents.diffuser_actor.qattention_diffuser_actor_agent import QAttentionPerActBCAgent
 from agents.diffuser_actor.qattention_stack_agent import QAttentionStackAgent
 
 from omegaconf import DictConfig

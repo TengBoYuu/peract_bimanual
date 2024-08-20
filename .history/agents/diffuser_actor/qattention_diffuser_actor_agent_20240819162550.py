@@ -55,7 +55,6 @@ class QFunction(nn.Module):
             if self.option_args.skill_predictor: # 使用该函数后要将 batch_size 设置为1，用多卡跑
                 self.option_selector = option_selector(**self.option_args)
         # distributed training
-        # 进入perceiver IO
         if training:
             self._qnet = DDP(self._qnet, device_ids=[device])
 
@@ -129,7 +128,7 @@ class QFunction(nn.Module):
         # states = torch.cat((flattened_voxel, proprio),dim=1)
         if self.option_args is not None:
             if self.option_args.skill_predictor:
-                # print('----------------------stats-------------------', states.shape)
+                # print('----------------------states-------------------', states.shape)
                 selected_options, _, commitment_loss, entropy, state_embeddings = self.option_selector(
                     lang_token_embs, states)
                 
@@ -144,11 +143,10 @@ class QFunction(nn.Module):
             prev_bounds,
             selected_options,
         )
-        print('-----------------using peract----------------------')
         return q_trans, q_rot_and_grip, q_ignore_collisions, voxel_grid
 
 
-class QAttentionPerActBCAgent(Agent):
+class QAttentionDiffuserActorAgent(Agent):
     def __init__(
         self,
         option_selector_args,
@@ -464,8 +462,8 @@ class QAttentionPerActBCAgent(Agent):
         action_ignore_collisions = replay_sample["ignore_collisions"].int()
         lang_goal_emb = replay_sample["lang_goal_emb"].float()
         lang_token_embs = replay_sample["lang_token_embs"].float()
-        prev_layer_voxel_grid = replay_sample.get("prev_layer_voxel_grid", None)
-        prev_layer_bounds = replay_sample.get("prev_layer_bounds", None)
+        prev_layer_voxel_grid = replay_sample.get("prev_layer_voxel_grid", None) # None
+        prev_layer_bounds = replay_sample.get("prev_layer_bounds", None) # None
         device = self._device
         rank = device
         bounds = self._coordinate_bounds.to(device)
@@ -503,31 +501,19 @@ class QAttentionPerActBCAgent(Agent):
             )
 
         # forward pass 
-        # Q_Function返回的变量
-        if self.option_args is not None:
-            if self.option_args.skill_predictor:
-                q_trans, q_rot_grip, q_collision, voxel_grid = self._q(
-                    obs,
-                    proprio,
-                    pcd,
-                    lang_goal_emb,
-                    lang_token_embs,
-                    bounds,
-                    prev_layer_bounds,
-                    prev_layer_voxel_grid,
-                )
-            else:
-                q_trans, q_rot_grip, q_collision, voxel_grid = self._q(
-                    obs,
-                    proprio,
-                    pcd,
-                    lang_goal_emb,
-                    lang_token_embs,
-                    bounds,
-                    prev_layer_bounds,
-                    prev_layer_voxel_grid,
-                )
-
+        q_trans, q_rot_grip, q_collision, voxel_grid = self._q(
+            obs,
+            proprio,
+            pcd,
+            lang_goal_emb,
+            lang_token_embs,
+            bounds,
+            prev_layer_bounds,
+            prev_layer_voxel_grid,
+        )
+        print('======> translation shape', q_trans.shape)
+        print('======> rot_and_grip shaep',q_rot_grip.shape)
+        print('======> collision shape',q_collision.shape)
         # argmax to choose best action
         (
             coords,

@@ -52,7 +52,7 @@ def create_agent(cfg: DictConfig):
             final_dim=cfg.method.final_dim,
         )
 
-        qattention_agent = QAttentionDiffuserActorAgent(
+        qattention_agent = QAttentionQAttentionDiffuserActorAgentAgent(
             layer=depth,
             coordinate_bounds=depth_0bounds,
             perceiver_encoder=perceiver_encoder,

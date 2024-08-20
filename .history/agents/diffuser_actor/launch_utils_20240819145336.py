@@ -4,9 +4,9 @@
 
 
 from helpers.preprocess_agent import PreprocessAgent
-from agents.diffuser_actor.perceiver_lang_io import PerceiverVoxelLangEncoder
-from agents.diffuser_actor.qattention_diffuser_actor_agent import QAttentionDiffuserActorAgent
-from agents.diffuser_actor.qattention_stack_agent import QAttentionStackAgent
+from agents.peract_bc.perceiver_lang_io import PerceiverVoxelLangEncoder
+from agents.peract_bc.qattention_peract_bc_agent import QAttentionPerActBCAgent
+from agents.peract_bc.qattention_stack_agent import QAttentionStackAgent
 
 from omegaconf import DictConfig
 
@@ -52,7 +52,7 @@ def create_agent(cfg: DictConfig):
             final_dim=cfg.method.final_dim,
         )
 
-        qattention_agent = QAttentionDiffuserActorAgent(
+        qattention_agent = QAttentionPerActBCAgent(
             layer=depth,
             coordinate_bounds=depth_0bounds,
             perceiver_encoder=perceiver_encoder,
