@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-SPLIT=test
+SPLIT=train
 RAW_SAVE_PATH=/mnt/disk_1/tengbo/bimanual_data/${SPLIT}
 PACKAGE_SAVE_PATH=/mnt/disk_1/tengbo/bimanual_data/packaged/${SPLIT}
 
