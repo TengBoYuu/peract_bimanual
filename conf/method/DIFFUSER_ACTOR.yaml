@@ -5,6 +5,7 @@ name: 'DIFFUSER_ACTOR'
 # Agent
 # agent_type: 'leader_follower'
 agent_type: 'leader_follower'
+# agent_type: 'independent'
 robot_name: 'bimanual'
 
 # Voxelization

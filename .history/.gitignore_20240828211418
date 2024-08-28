@@ -9,7 +9,6 @@ replay/
 ckpts/
 bimanual_data/
 conf/
-scripts/
 # C extensions
 *.so
 

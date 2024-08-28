@@ -16,7 +16,7 @@ exp_name=${3:-"${method}_${addition_info}"}
 
 starttime=`date +'%Y-%m-%d %H:%M:%S'`
 
-camera=False
+camera=True
 gripper_mode='BimanualDiscrete'
 arm_action_mode='BimanualEndEffectorPoseViaPlanning'
 action_mode='BimanualMoveArmThenGripper'
