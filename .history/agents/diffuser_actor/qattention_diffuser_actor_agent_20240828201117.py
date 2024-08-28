@@ -569,15 +569,18 @@ class QAttentionDiffuserActorAgent(Agent):
         #     bounds,
         #     prev_layer_bounds,
         #     prev_layer_voxel_grid,
-        # 
-        action = replay_sample["action"].float()
+        # )
         open = proprio[0][0]
+        # print(open)
         _gt_ = action_gripper_pose
+        # print("gt: ",_gt_.shape)
         open_expanded = open.unsqueeze(0).expand(_gt_.size(0), 1)
         gt_ = torch.cat((_gt_, open_expanded), dim=1)
-        gt = torch.cat((gt_, action_ignore_collisions), dim=1) 
+        # print(action_ignore_collisions.shape)
+        # collision = action_ignore_collisions.unsqueeze(0).expand(gt_.size(0),1)
+        action = replay_sample["action"].float()
+        gt = torch.cat((action, action_ignore_collisions), dim=1) 
         gt = gt.unsqueeze(1) # [b,1,9] 3 + 4 + open + collision
-        # print(gt.shape) # [B,1,9]
         q_trans_loss, q_rot_loss, q_grip_loss, q_collision_loss, voxel_grid = self._q(
             obs,
             proprio,
@@ -594,6 +597,7 @@ class QAttentionDiffuserActorAgent(Agent):
             instruction=instructions,
             inference=False,
         )
+
         combined_losses = (
             (q_trans_loss * self._trans_loss_weight)
             + (q_rot_loss * self._rot_loss_weight)

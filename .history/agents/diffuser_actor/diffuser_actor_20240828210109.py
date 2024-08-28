@@ -299,7 +299,8 @@ class DiffuserActor(nn.Module):
         if gt_trajectory is not None:
             gt_trajectory = gt_trajectory_copy[..., :7]
             gt_openess = gt_trajectory_copy[..., 7:8]
-            gt_collision = gt_trajectory_copy[...,8:]
+            gt_collision = gt_trajectory[...,8:]
+            print(gt_openess)
         # gt_trajectory is expected to be in the quaternion format
         if run_inference:
             return self.compute_trajectory(

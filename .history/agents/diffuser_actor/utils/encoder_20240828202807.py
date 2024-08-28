@@ -229,8 +229,8 @@ class Encoder(nn.Module):
         instr_feats = self.instruction_encoder(instruction)
         # print(instruction.shape)
 
-        # if torch.isnan(instruction).any():
-        #     raise ValueError("NaN detected in instruction input before Linear layer.")
+        if torch.isnan(instruction).any():
+            raise ValueError("NaN detected in instruction input before Linear layer.")
         # if torch.isnan(self.instruction_encoder.weight).any() or torch.isnan(self.instruction_encoder.bias).any():
         #     print("model nan")
         # if torch.isnan(instr_feats).any():

@@ -48,27 +48,27 @@ skill_predictor=False
 
 ######## Revise frequently
 load_existing_weights=False
-use_pre=True
+use_pre=False
 # 13 tasks in total, without (e)put_item_in_drawer now
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
 # bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy
-tasks=[coordinated_lift_ball]
-demo=100
-episode_length=25
-save_freq=10000
-log_freq=100
-task_folder="multi"
+# tasks=[coordinated_lift_ball]
+# demo=100
+# episode_length=25
+# save_freq=10000
+# log_freq=100
+# task_folder="multi"
 
 
 # for debug
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-# tasks=[dual_push_buttons]
-# demo=1
-# episode_length=4
-# save_freq=1000
-# log_freq=1
-# wandb_project="debug"
-# task_folder="debug"
+tasks=[dual_push_buttons]
+demo=1
+episode_length=4
+save_freq=1000
+log_freq=1
+wandb_project="debug"
+task_folder="debug"
 #########
 
 tmux select-pane -t 0 

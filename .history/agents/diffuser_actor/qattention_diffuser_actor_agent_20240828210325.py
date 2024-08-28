@@ -594,6 +594,7 @@ class QAttentionDiffuserActorAgent(Agent):
             instruction=instructions,
             inference=False,
         )
+
         combined_losses = (
             (q_trans_loss * self._trans_loss_weight)
             + (q_rot_loss * self._rot_loss_weight)

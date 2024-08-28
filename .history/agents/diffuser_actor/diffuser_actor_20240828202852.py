@@ -295,11 +295,11 @@ class DiffuserActor(nn.Module):
         # print(pcd_obs.shape) # [2,6,3,256,256]
         # print(instruction.shape) # [2,77,512]
         # print(gt_trajectory)
-        gt_trajectory_copy = gt_trajectory
         if gt_trajectory is not None:
-            gt_trajectory = gt_trajectory_copy[..., :7]
-            gt_openess = gt_trajectory_copy[..., 7:8]
-            gt_collision = gt_trajectory_copy[...,8:]
+            gt_trajectory = gt_trajectory[..., :7]
+            gt_openess = gt_trajectory[..., 7:8]
+            gt_collision = gt_trajectory[...,8:]
+            print(gt_openess)
         # gt_trajectory is expected to be in the quaternion format
         if run_inference:
             return self.compute_trajectory(
