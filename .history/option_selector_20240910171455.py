@@ -152,8 +152,8 @@ class OptionSelector(nn.Module):
         combined_features = torch.cat((rgb_combined_features, lang_features), dim=1)
 
 
-        # print("RGB combined features shape:", rgb_combined_features.shape)
-        # print("Combined features shape:", combined_features.shape)
+        print("RGB combined features shape:", rgb_combined_features.shape)
+        print("Combined features shape:", combined_features.shape)
         logits = self.fc(combined_features)
         probs = F.softmax(logits, dim=1)
 

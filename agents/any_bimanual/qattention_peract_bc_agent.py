@@ -626,7 +626,7 @@ class QAttentionPerActBCAgent(Agent):
             left_action_trans = left_action_trans.int()
 
         proprio = torch.cat((right_proprio, left_proprio), dim=1)
-        print(proprio.shape)
+        # print(right_proprio)
         right_action = (
             right_action_trans,
             right_action_rot_grip,

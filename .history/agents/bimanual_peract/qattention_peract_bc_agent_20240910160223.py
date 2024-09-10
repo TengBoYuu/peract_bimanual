@@ -126,9 +126,6 @@ class QFunction(nn.Module):
         if self.training:
             selected_options = None
             if self.use_predictor:
-                # TO DO
-                # 对左右臂skill有区分
-                # 加上本体感知
                 selected_options = self.option_selector(rgb, lang_token_embs)
                 # print(selected_options.shape)
                 lang_token_embs = torch.cat((selected_options, lang_token_embs),dim=1)

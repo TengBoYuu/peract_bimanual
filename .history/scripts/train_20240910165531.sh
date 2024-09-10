@@ -58,7 +58,7 @@ timesteps=1
 # save_freq=5000
 # log_freq=100
 # task_folder="multi"
-# replay_path="/mnt/disk_2/tengbo/replay/"
+# replay_path="/mnt/disk_2/tengbo/replay_/"
 
 
 
@@ -68,7 +68,7 @@ tasks=[dual_push_buttons]
 demo=1
 episode_length=4
 save_freq=100
-log_freq=10
+log_freq=1
 wandb_project="debug"
 task_folder="debug"
 replay_path="/mnt/disk_2/tengbo/replay/debug/"

@@ -18,7 +18,7 @@ num_latents: 2048
 latent_dim: 512
 transformer_depth: 6
 transformer_iterations: 1
-cross_heads: 1 
+cross_heads: 1
 cross_dim_head: 64
 latent_heads: 8
 latent_dim_head: 64

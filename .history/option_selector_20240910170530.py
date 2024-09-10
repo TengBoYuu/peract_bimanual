@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 import clip
-import pickle
 vocabulary = {
     'turn_tap': [
         'turn tap' ,
@@ -125,7 +124,7 @@ class OptionSelector(nn.Module):
         self.language_pool = nn.AdaptiveAvgPool1d(1) 
 
         self.fc = nn.Sequential(
-            nn.Linear(12544, 512), 
+            nn.Linear(10496, 512), 
             nn.ReLU(),
             nn.Linear(512, num_classes)  
         )
@@ -134,8 +133,7 @@ class OptionSelector(nn.Module):
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device_ids[0] 
-        with open("/mnt/disk_1/tengbo/peract_bimanual/vocabulary_embeddings.pkl", "rb") as f:
-            self.embeddings_dict = pickle.load(f)
+        self.clip_model, _ = clip.load("ViT-B/32", device=self.device, jit=False)
 
     def forward(self, rgb_list, lang_input):
         rgb_features_list = []
@@ -151,9 +149,6 @@ class OptionSelector(nn.Module):
 
         combined_features = torch.cat((rgb_combined_features, lang_features), dim=1)
 
-
-        # print("RGB combined features shape:", rgb_combined_features.shape)
-        # print("Combined features shape:", combined_features.shape)
         logits = self.fc(combined_features)
         probs = F.softmax(logits, dim=1)
 
@@ -164,8 +159,19 @@ class OptionSelector(nn.Module):
         for i in range(predicted_class.size(0)): 
             class_idx = predicted_class[i].item() 
             vocab_key = list(self.vocabulary.keys())[class_idx]
-            mean_embedding = torch.tensor(self.embeddings_dict[vocab_key]).to(self.device)
+            sentences = self.vocabulary[vocab_key]
+
+            sentence_embeddings = []
+
+            for sentence in sentences:
+                text_tokens = clip.tokenize([sentence]).to(self.device) 
+                text_embedding = self.clip_model.encode_text(text_tokens)
+                sentence_embeddings.append(text_embedding)
+            sentence_embeddings = torch.stack(sentence_embeddings, dim=0)  
+            mean_embedding = sentence_embeddings.mean(dim=0) 
+
             mean_embedding = mean_embedding.expand(lang_input.size(1), -1)  # [77, 512]
+
             batch_vocabulary_sentences.append(mean_embedding)
 
         final_embeddings = torch.stack(batch_vocabulary_sentences, dim=0)  # [batch_size, 77, 512]

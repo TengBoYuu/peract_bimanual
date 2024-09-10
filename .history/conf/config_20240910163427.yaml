@@ -9,7 +9,7 @@ rlbench:
     demos: 100
     demo_path: /my/demo/path
     episode_length: 25
-    cameras: [ "over_shoulder_right", "wrist_right", "front", "overhead","over_shoulder_left" , "wrist_left"]
+    cameras: ["over_shoulder_left", "over_shoulder_right", "wrist_right", "front", "overhead", , "wrist_left"]
     camera_resolution: [256,256]
     scene_bounds: [-0.3, -0.5, 0.6, 0.7, 0.5, 1.6]
     include_lang_goal_in_obs: True

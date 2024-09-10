@@ -91,10 +91,6 @@ def agent_fn_by_name(method_name: str) -> Agent:
         from agents import bimanual_peract
         
         return bimanual_peract.launch_utils.create_agent
-    elif method_name.startswith("ANY_BIMANUAL"):
-        from agents import any_bimanual
-        
-        return any_bimanual.launch_utils.create_agent
     elif method_name.startswith("RVT"):
         from agents import rvt
 

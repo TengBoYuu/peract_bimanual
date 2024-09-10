@@ -467,6 +467,7 @@ class QAttentionPerActBCAgent(Agent):
         return q_collision_softmax
 
     def update(self, step: int, replay_sample: dict) -> dict:
+        print("ajdajdkakdhaj")
         right_action_trans = replay_sample["right_trans_action_indicies"][
             ..., self._layer * 3 : self._layer * 3 + 3
         ].int()

@@ -1,6 +1,6 @@
 # @package _group_
 
-name: 'BIMANUAL_PERACT'
+name: 'ANY_BIMANUAL'
 
 # Agent
 robot_name: 'bimanual'

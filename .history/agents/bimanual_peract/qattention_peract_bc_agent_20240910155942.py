@@ -126,9 +126,6 @@ class QFunction(nn.Module):
         if self.training:
             selected_options = None
             if self.use_predictor:
-                # TO DO
-                # 对左右臂skill有区分
-                # 加上本体感知
                 selected_options = self.option_selector(rgb, lang_token_embs)
                 # print(selected_options.shape)
                 lang_token_embs = torch.cat((selected_options, lang_token_embs),dim=1)
@@ -514,7 +511,7 @@ class QAttentionPerActBCAgent(Agent):
         if self._include_low_dim_state:
             right_proprio = replay_sample["right_low_dim_state"]
             left_proprio = replay_sample["left_low_dim_state"]
-        
+        print(proprio.shape)
         # ..TODO::
         # Can we add the coordinates of both robots?
         #
@@ -626,7 +623,7 @@ class QAttentionPerActBCAgent(Agent):
             left_action_trans = left_action_trans.int()
 
         proprio = torch.cat((right_proprio, left_proprio), dim=1)
-        print(proprio.shape)
+
         right_action = (
             right_action_trans,
             right_action_rot_grip,
