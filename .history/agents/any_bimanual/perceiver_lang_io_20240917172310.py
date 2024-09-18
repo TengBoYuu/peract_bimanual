@@ -434,19 +434,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
         # print("-------proprio-------")
         # print(proprio.shape) # [B,8]
         # concat proprio
-        if self.low_dim_size > 0:
-            if self.use_skill:
-                p_right = self.proprio_preprocess_right(proprio[:,:4])  # [B,8] -> [B,64]
-                p_right = p_right.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
-                skill_ins_right = torch.cat([ins_right_1, p_right], dim=1) 
-                p_left = self.proprio_preprocess_left(proprio[:,4:])  # [B,8] -> [B,64]
-                p_left = p_left.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
-                skill_ins_left = torch.cat([ins_left_1, p_left], dim=1) 
-            p = self.proprio_preprocess(proprio)  # [B,8] -> [B,64]
-            p = p.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
-            ins = torch.cat([ins, p], dim=1)  # [B,128,20,20,20]
-            ins_right_ = torch.cat([ins_right_, p], dim=1)  # [B,128,20,20,20]
-            ins_left_ = torch.cat([ins_left_, p],dim=1)
+
 
 
         # language ablation

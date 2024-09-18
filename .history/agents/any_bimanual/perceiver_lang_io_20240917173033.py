@@ -97,7 +97,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
         print("prefix: ",self.use_prefix)
         # CLIP language feature dimensions
         if self.use_skill:
-            lang_feat_dim, lang_emb_dim, lang_max_seq_len = 1024, 512, 154
+            lang_feat_dim, lang_emb_dim, lang_max_seq_len = 1024, 512, 77*3
         else:
             lang_feat_dim, lang_emb_dim, lang_max_seq_len = 1024, 512, 77
 

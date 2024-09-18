@@ -50,7 +50,7 @@ prefix=True
 ######## Revise frequently
 load_existing_weights=False
 use_pre=True
-frozen=False
+frozen=True
 
 timesteps=1
 # 13 tasks in total, without (e)put_item_in_drawer now

@@ -50,7 +50,7 @@ prefix=True
 ######## Revise frequently
 load_existing_weights=False
 use_pre=True
-frozen=False
+frozen=True
 
 timesteps=1
 # 13 tasks in total, without (e)put_item_in_drawer now
@@ -77,7 +77,7 @@ log_freq=10
 wandb_project="debug"
 task_folder="debug"
 replay_path="/mnt/disk_2/tengbo/replay/debug/"
-training_iterations=500
+training_iterations=100
 #########
 
 tmux select-pane -t 0 

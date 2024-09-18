@@ -752,9 +752,9 @@ class QAttentionPerActBCAgent(Agent):
         self._optimizer.step()
         torch.cuda.empty_cache()
 
-        for name, param in self._q.named_parameters():
-            if param.grad is None:
-                print(f"Parameter {name} was not used in the forward pass.")
+        # for name, param in self._q.named_parameters():
+        #     if param.grad is None:
+        #         print(f"Parameter {name} was not used in the forward pass.")
 
         self._summaries = {
             "losses/total_loss": total_loss,
@@ -1200,12 +1200,12 @@ class QAttentionPerActBCAgent(Agent):
                         merged_state_dict[left_key] = v
                 elif k == '_qnet.module.proprio_preprocess.linear.bias':
                     merged_state_dict['_qnet.module.proprio_preprocess.linear.bias'] = v
-                    if self.use_skill:
-                        right_key = k.replace("_qnet.module.proprio_preprocess", "_qnet.module.proprio_preprocess_right")
-                        merged_state_dict[right_key] = v
+                    # if self.use_skill:
+                    #     right_key = k.replace("_qnet.module.proprio_preprocess", "_qnet.module.proprio_preprocess_right")
+                    #     merged_state_dict[right_key] = v
                         
-                        left_key = k.replace("_qnet.module.proprio_preprocess", "_qnet.module.proprio_preprocess_left")
-                        merged_state_dict[left_key] = v
+                    #     left_key = k.replace("_qnet.module.proprio_preprocess", "_qnet.module.proprio_preprocess_left")
+                    #     merged_state_dict[left_key] = v
                 # pos_with_lang
                 elif k == "_qnet.module.pos_encoding":
                     if (v.shape[1] != 8077 or v.shape[1] != 8154) and v.shape[1] < 154:

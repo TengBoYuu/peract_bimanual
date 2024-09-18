@@ -752,9 +752,9 @@ class QAttentionPerActBCAgent(Agent):
         self._optimizer.step()
         torch.cuda.empty_cache()
 
-        for name, param in self._q.named_parameters():
-            if param.grad is None:
-                print(f"Parameter {name} was not used in the forward pass.")
+        # for name, param in self._q.named_parameters():
+        #     if param.grad is None:
+        #         print(f"Parameter {name} was not used in the forward pass.")
 
         self._summaries = {
             "losses/total_loss": total_loss,

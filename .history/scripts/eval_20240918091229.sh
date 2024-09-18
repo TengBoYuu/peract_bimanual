@@ -24,7 +24,7 @@ action_mode='BimanualMoveArmThenGripper'
 # tasks=[coordinated_lift_ball]
 # tasks=[dual_push_buttons]
 tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-eval_type=65000
+eval_type=90
 eval_episodes=25
 
 echo "I am going to kill the session ${exp_name}_${eval_type}_${eval_episodes}, are you sure? (5s)"

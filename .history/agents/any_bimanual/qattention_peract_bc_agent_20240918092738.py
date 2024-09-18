@@ -1208,7 +1208,7 @@ class QAttentionPerActBCAgent(Agent):
                         merged_state_dict[left_key] = v
                 # pos_with_lang
                 elif k == "_qnet.module.pos_encoding":
-                    if (v.shape[1] != 8077 or v.shape[1] != 8154) and v.shape[1] < 154:
+                    if (v.shape[1] != 8077 or v.shape[1] != 8231) and v.shape[1] < 231:
                         if self.use_skill:
                             lang_max_seq_len = 154
                         else:

@@ -438,10 +438,10 @@ class PerceiverVoxelLangEncoder(nn.Module):
             if self.use_skill:
                 p_right = self.proprio_preprocess_right(proprio[:,:4])  # [B,8] -> [B,64]
                 p_right = p_right.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
-                skill_ins_right = torch.cat([ins_right_1, p_right], dim=1) 
+                skill_ins_right = torch.cat([ins_right_1, p_right], dim=1)  # [B,128,20,20,20]
                 p_left = self.proprio_preprocess_left(proprio[:,4:])  # [B,8] -> [B,64]
                 p_left = p_left.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
-                skill_ins_left = torch.cat([ins_left_1, p_left], dim=1) 
+                skill_ins_left = torch.cat([ins_left_1, p_left], dim=1)  # [B,128,20,20,20]
             p = self.proprio_preprocess(proprio)  # [B,8] -> [B,64]
             p = p.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1).repeat(1, 1, d, h, w)
             ins = torch.cat([ins, p], dim=1)  # [B,128,20,20,20]
@@ -506,13 +506,13 @@ class PerceiverVoxelLangEncoder(nn.Module):
             if self.lang_fusion_type == "seq":
                 # print(right_skill.requires_grad)
                 l = self.lang_preprocess(lang_token_embs) # [B,77,512] -> [B,77,128]
-                # print(lang_token_embs.requires_grad) # False
-                # print(l.requires_grad) # True
-                # print(skill_ins_right.requires_grad) # True
+                print(lang_token_embs.requires_grad) # False
+                print(l.requires_grad) # True
+                print(skill_ins_right.requires_grad) # True
                 right_skill = self.option_selector(skill_ins_right,l) # 
                 right_lang_token_embs = torch.cat((right_skill,lang_token_embs),dim=1)
-                # print(right_skill.requires_grad) # True
-                # print(right_lang_token_embs.requires_grad) # True
+                print(right_skill.requires_grad)
+                print(right_lang_token_embs.requires_grad)
                 l_right = self.lang_preprocess_right(right_lang_token_embs) # [B,77,512] -> [B,77,128]
                 # print("l_right" ,l_right.shape)
                 ins_right = torch.cat((l_right, ins_right_), dim=1)  # [B,8077,128]
