@@ -1,0 +1,36 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+# 定义数据
+data1 = [8.00, 16.00, 4.00, 40.00, 4.00, 0.00, 0.00, 12.00, 0.00, 0.00, 0.00, 24.00]
+data2 = [8.00, 32.00, 24.00, 20.00, 12.00, 16.00, 8.00, 84.00, 8.00, 4.00, 4.00]
+
+# 计算平均值和标准误差
+means = [np.mean(data1), np.mean(data2)]
+std_errors = [np.std(data1) / np.sqrt(len(data1)), np.std(data2) / np.sqrt(len(data2))]
+
+# 创建图像
+fig, ax = plt.subplots(figsize=(2, 4))  # 调整图像大小以符合你的格式
+
+# 绘制带有误差条的柱状图
+bars = ax.bar(['Data1', 'Data2'], means, yerr=std_errors, capsize=5, color=['blue', 'orange'])
+
+# 设置y轴标签和标题
+ax.set_ylabel('Success Rates', fontsize=10)
+ax.set_title('RLBench2', fontsize=12)
+
+# 在柱子上标注平均值
+for bar, mean in zip(bars, means):
+    height = bar.get_height()
+    ax.annotate(f'{mean:.1f}', xy=(bar.get_x() + bar.get_width() / 2, height),
+                xytext=(0, 3),  # 位置偏移
+                textcoords="offset points", ha='center', va='bottom', fontsize=10)
+
+# 调整刻度标签的字体大小
+ax.tick_params(axis='both', which='major', labelsize=9)
+
+# 保存图像为EPS格式
+plt.savefig('boxplot_with_error_bars.png', format='png')
+
+# 显示图像
+plt.show()
