@@ -111,7 +111,6 @@ class QFunction(nn.Module):
         # swap to channels fist
         voxel_grid = voxel_grid.permute(0, 4, 1, 2, 3).detach()
 
-        print(voxel_grid.shape) # [b, 10, 100, 100, 100]
         # batch bounds if necessary
         if bounds.shape[0] != b:
             bounds = bounds.repeat(b, 1)
@@ -453,13 +452,7 @@ class QAttentionPerActBCAgent(Agent):
         return q_collision_softmax
 
     def update(self, step: int, replay_sample: dict) -> dict:
-        if step > 50:
-            for name, param in self._q.named_parameters():
-                if 'fc1_right' in name:
-                    param.requires_grad = False
-                if 'fc1_left' in name:
-                    param.requires_grad = False
-                # print(f"Froze parameter: {name}")
+        print(step)
         right_action_trans = replay_sample["right_trans_action_indicies"][
             ..., self._layer * 3 : self._layer * 3 + 3
         ].int()
@@ -584,8 +577,6 @@ class QAttentionPerActBCAgent(Agent):
             prev_layer_voxel_grid,
             
         )
-
-
 
         (
             right_q_trans,
@@ -765,7 +756,8 @@ class QAttentionPerActBCAgent(Agent):
         torch.cuda.empty_cache()
 
         # for name, param in self._q.named_parameters():
-        #     print(name)
+        #     if param.grad is None:
+        #         print(f"Parameter {name} was not used in the forward pass.")
 
         self._summaries = {
             "losses/total_loss": total_loss,
@@ -808,25 +800,6 @@ class QAttentionPerActBCAgent(Agent):
         self._left_vis_translation_qvalue = self._softmax_q_trans(left_q_trans[0])
         self._left_vis_max_coordinate = left_coords[0]
         self._left_vis_gt_coordinate = left_action_trans[0]
-
-        # voxel_grid1 = voxel_grid[0]
-        # voxel_grid2 = voxel_grid[0]
-        # right_file = "right" + str(step)
-        # left_file = "left" + str(step)
-        # visualise_voxel(
-        #     voxel_grid1,
-        #     self._right_vis_translation_qvalue.detach().cpu().numpy(),
-        #     self._right_vis_max_coordinate.detach().cpu().numpy(),
-        #     self._right_vis_gt_coordinate.detach().cpu().numpy(),
-        #     filename = right_file
-        # )
-        # visualise_voxel(
-        #     voxel_grid2,
-        #     self._left_vis_translation_qvalue.detach().cpu().numpy(),
-        #     self._left_vis_max_coordinate.detach().cpu().numpy(),
-        #     self._left_vis_gt_coordinate.detach().cpu().numpy(),
-        #     filename = left_file
-        # )
 
         # Note: PerAct doesn't use multi-layer voxel grids like C2FARM
         # stack prev_layer_voxel_grid(s) from previous layers into a list

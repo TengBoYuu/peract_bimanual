@@ -39,43 +39,42 @@ tmux new-session -d -s ${exp_name}
 # batch_size=2
 # skill_predictor=False
 
-batch_size=1
-skill_predictor=True
-prefix=True
+batch_size=2
+skill_predictor=False
+prefix=False
 
 # task_name=${"multi_${addition_info}"}
 
 
 ######## Revise frequently
-load_existing_weights=False
-use_pre=True
+load_existing_weights=True
+use_pre=False
 frozen=False
 
-timesteps=1
-# 13 tasks in total, without (e)put_item_in_drawer now
+
+# # 13 tasks in total, without (e)put_item_in_drawer now
 tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-# # bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy
 # tasks=[bimanual_pick_laptop]
 demo=100
 episode_length=25
 save_freq=5000
 log_freq=100
 task_folder="multi"
-replay_path="/mnt/disk_2/tengbo/replay/"
+replay_path="/mnt/disk_3/tengbo/replay_rvt/"
 training_iterations=100001
 
 
 
 # for debug
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-# tasks=[dual_push_buttons]
+# tasks=[coordinated_take_tray_out_of_oven]
 # demo=1
 # episode_length=4
 # save_freq=10
 # log_freq=10
 # wandb_project="debug"
 # task_folder="debug"
-# replay_path="/mnt/disk_2/tengbo/replay/debug/"
+# replay_path="/mnt/disk_2/tengbo/replay_debug/debug/"
 # training_iterations=50000
 #########
 
@@ -104,7 +103,6 @@ CUDA_VISIBLE_DEVICES=${train_gpu} python train.py method=$method \
         replay.task_folder=${task_folder} \
         rlbench.instructions=${instructions} \
         framework.log_freq=${log_freq} \
-        replay.timesteps=${timesteps} \
         framework.use_prefix=${prefix} \
         framework.training_iterations=${training_iterations} \
         framework.frozen=${frozen}

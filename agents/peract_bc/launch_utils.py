@@ -50,7 +50,6 @@ def create_agent(cfg: DictConfig):
             no_perceiver=cfg.method.no_perceiver,
             no_language=cfg.method.no_language,
             final_dim=cfg.method.final_dim,
-            predictor = cfg.framework.use_skill,
         )
 
         qattention_agent = QAttentionPerActBCAgent(
@@ -83,8 +82,6 @@ def create_agent(cfg: DictConfig):
             optimizer_type=cfg.method.optimizer,
             num_devices=cfg.ddp.num_devices,
             checkpoint_name_prefix=cfg.framework.checkpoint_name_prefix,
-            predictor = cfg.framework.use_skill,
-            instructions = cfg.rlbench.instructions
         )
         qattention_agents.append(qattention_agent)
 

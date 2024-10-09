@@ -9,7 +9,7 @@ from rlbench.backend.observation import Observation
 from rlbench import CameraConfig, ObservationConfig
 from pyrep.const import RenderMode
 from typing import List
-
+from PIL import Image
 import blosc
 import pickle
 
@@ -188,32 +188,38 @@ def create_voxel_scene(
     alpha: float = 0.5,
 ):
     _, d, h, w = voxel_grid.shape
-    v = voxel_grid.transpose((1, 2, 3, 0))
+    v = voxel_grid.permute(1, 2, 3, 0)
     occupancy = v[:, :, :, -1] != 0
-    alpha = np.expand_dims(np.full_like(occupancy, alpha, dtype=np.float32), -1)
-    rgb = np.concatenate([(v[:, :, :, 3:6] + 1) / 2.0, alpha], axis=-1)
+    alpha = np.expand_dims(np.full_like(occupancy.cpu(), alpha, dtype=np.float32), -1)
+    rgb = np.concatenate([(v[:, :, :, 3:6].cpu() + 1) / 2.0, alpha], axis=-1)
 
     if q_attention is not None:
         q = np.max(q_attention, 0)
         q = q / np.max(q)
         show_q = q > 0.75
-        occupancy = (show_q + occupancy).astype(bool)
+        occupancy = (show_q + occupancy.cpu().numpy()).astype(bool)
         q = np.expand_dims(q - 0.5, -1)  # Max q can be is 0.9
         q_rgb = np.concatenate(
             [q, np.zeros_like(q), np.zeros_like(q), np.clip(q, 0, 1)], axis=-1
         )
         rgb = np.where(np.expand_dims(show_q, -1), q_rgb, rgb)
 
-    if highlight_coordinate is not None:
-        x, y, z = highlight_coordinate
-        occupancy[x, y, z] = True
-        rgb[x, y, z] = [1.0, 0.0, 0.0, highlight_alpha]
+    # if highlight_coordinate is not None:
+    #     x, y, z = highlight_coordinate
+    #     occupancy[x, y, z] = True
+    #     rgb[x, y, z] = [1.0, 0.0, 0.0, highlight_alpha]
 
-    if highlight_gt_coordinate is not None:
-        x, y, z = highlight_gt_coordinate
-        occupancy[x, y, z] = True
-        rgb[x, y, z] = [0.0, 0.0, 1.0, highlight_alpha]
-
+    # if highlight_gt_coordinate is not None:
+    #     x, y, z = highlight_gt_coordinate
+    #     occupancy[x, y, z] = True
+    #     rgb[x, y, z] = [0.0, 0.0, 1.0, highlight_alpha]
+    
+    for x in range(50, 100):  # x > 50
+        for y in range(50, 100):  # y > 50
+            for z in range(40, w):  # z > 50
+                rgb[x, y, z] = [1.0, 1.0, 1.0, 0]  # Set transparency to 0.2
+                # print(rgb[x, y, z, -1])
+    # print(rgb.shape) # [100,100,100,4]
     transform = trimesh.transformations.scale_and_translate(
         scale=voxel_size, translate=(0.0, 0.0, 0.0)
     )
@@ -241,6 +247,7 @@ def visualise_voxel(
     offscreen_renderer: pyrender.OffscreenRenderer = None,
     show_bb: bool = False,
     alpha: float = 0.5,
+    filename: str = ""
 ):
     scene = create_voxel_scene(
         voxel_grid,
@@ -269,6 +276,12 @@ def visualise_voxel(
         t.rotate(rotation_amount, np.array([0.0, 0.0, 1.0]))
         s.add(cam, pose=t.pose)
         color, depth = r.render(s)
+
+        image = Image.fromarray(color)
+
+        save_path = f"/mnt/disk_1/tengbo/peract_bimanual/voxel_vis/voxel_vis_left/{filename}.png"
+        image.save(save_path)
+
         return color.copy()
 
 

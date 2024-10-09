@@ -32,22 +32,6 @@ class OptionSelector(nn.Module):
             nn.ReLU(),
             nn.Linear(256, num_classes)
         )
-        self.fc1_right = nn.Sequential(
-            nn.Linear(128*256, 512),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, num_classes)
-        )
-        self.fc1_left = nn.Sequential(
-            nn.Linear(128*256, 512),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(512, 256),
-            nn.ReLU(),
-            nn.Linear(256, num_classes)
-        )
         # self.fc1 = nn.Linear(8077*128,num_classes)
         # self.fc1.apply(init_weights_xavier)
         # self.fc2 = nn.Linear(num_classes,77*512)
@@ -78,10 +62,8 @@ class OptionSelector(nn.Module):
         ins_left = self.conv1(ins_left)
         ins_right = ins_right.view(ins_right.size(0),-1)
         ins_left = ins_left.view(ins_left.size(0),-1)
-        # logits_right = self.fc1(ins_right)
-        # logits_left = self.fc1(ins_left)
-        logits_right = self.fc1_right(ins_right)
-        logits_left = self.fc1_left(ins_left)
+        logits_right = self.fc1(ins_right)
+        logits_left = self.fc1(ins_left)
         probs_right = F.softmax(logits_right, dim=1)
         probs_left = F.softmax(logits_left, dim=1)
         skill_right = torch.matmul(probs_right, self.embeddings_matrix.to(probs_right.device))
@@ -89,8 +71,8 @@ class OptionSelector(nn.Module):
         skill_right = skill_right.view(-1,77,512)
         skill_left  = skill_left.view(-1,77,512)
 
-        # print("right: ",probs_right)
-        # print("left: ", probs_left)
+        print(probs_right)
+        print(probs_left)
         # skill_right = skill_right + lang
         # skill_left = skill_left + lang
         # predicted_class = torch.argmax(probs, dim=1)

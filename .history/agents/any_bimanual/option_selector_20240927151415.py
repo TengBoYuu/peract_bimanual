@@ -78,8 +78,6 @@ class OptionSelector(nn.Module):
         ins_left = self.conv1(ins_left)
         ins_right = ins_right.view(ins_right.size(0),-1)
         ins_left = ins_left.view(ins_left.size(0),-1)
-        # logits_right = self.fc1(ins_right)
-        # logits_left = self.fc1(ins_left)
         logits_right = self.fc1_right(ins_right)
         logits_left = self.fc1_left(ins_left)
         probs_right = F.softmax(logits_right, dim=1)
@@ -89,8 +87,8 @@ class OptionSelector(nn.Module):
         skill_right = skill_right.view(-1,77,512)
         skill_left  = skill_left.view(-1,77,512)
 
-        # print("right: ",probs_right)
-        # print("left: ", probs_left)
+        print(logits_right)
+        print(logits_left)
         # skill_right = skill_right + lang
         # skill_left = skill_left + lang
         # predicted_class = torch.argmax(probs, dim=1)

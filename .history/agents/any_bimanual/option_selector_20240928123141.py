@@ -89,8 +89,8 @@ class OptionSelector(nn.Module):
         skill_right = skill_right.view(-1,77,512)
         skill_left  = skill_left.view(-1,77,512)
 
-        # print("right: ",probs_right)
-        # print("left: ", probs_left)
+        print("right: ",probs_right)
+        print("left: ", probs_left)
         # skill_right = skill_right + lang
         # skill_left = skill_left + lang
         # predicted_class = torch.argmax(probs, dim=1)

@@ -83,6 +83,7 @@ class RVTAgentWrapper(Agent):
         self.rvt_agent = rvt_agent.RVTAgent(
             network=rvt,
             #image_resolution=self.rlbench_cfg.camera_resolution,
+            stage_two=False,
             add_lang=self.mvt_cfg.add_lang,
             scene_bounds=self.rlbench_cfg.scene_bounds,
             cameras=self.rlbench_cfg.cameras,

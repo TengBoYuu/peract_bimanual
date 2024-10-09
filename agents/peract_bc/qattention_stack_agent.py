@@ -43,12 +43,12 @@ class QAttentionStackAgent(Agent):
             "total_losses": total_losses,
         }
 
-    def act(self, step: int, observation: dict, deterministic=False,=) -> ActResult:
+    def act(self, step: int, observation: dict, deterministic=False) -> ActResult:
         observation_elements = {}
         translation_results, rot_grip_results, ignore_collisions_results = [], [], []
         infos = {}
         for depth, qagent in enumerate(self._qattention_agents):
-            act_results = qagent.act(step, observation, deterministic=)
+            act_results = qagent.act(step, observation, deterministic)
             attention_coordinate = (
                 act_results.observation_elements["attention_coordinate"].cpu().numpy()
             )
@@ -86,6 +86,7 @@ class QAttentionStackAgent(Agent):
                 observation_elements["%s_pixel_coord" % n] = [py, px]
 
             infos.update(act_results.info)
+
         rgai = torch.cat(rot_grip_results, 1)[0].cpu().numpy()
         ignore_collisions = float(
             torch.cat(ignore_collisions_results, 1)[0].cpu().numpy()
@@ -106,8 +107,6 @@ class QAttentionStackAgent(Agent):
                 [ignore_collisions],
             ]
         )
-        # print("-----continuous-------")
-        # print(continuous_action) # 这里就是最终的连续值了 [ 0.67499995 -0.19500002  1.48500001 -0.5328338   0.60915999  0.31500558.   0.4957658   1.          0.        ]
         return ActResult(
             continuous_action, observation_elements=observation_elements, info=infos
         )
@@ -118,12 +117,6 @@ class QAttentionStackAgent(Agent):
             summaries.extend(qa.update_summaries())
         return summaries
 
-    def update_wandb_summaries(self):
-        summaries = {}
-        for qa in self._qattention_agents:
-            summaries.update(qa.update_wandb_summaries())
-        return summaries
-    
     def act_summaries(self) -> List[Summary]:
         s = []
         for qa in self._qattention_agents:

@@ -389,7 +389,6 @@ class PerceiverVoxelLangEncoder(nn.Module):
         mask=None,
     ):
         # preprocess input
-        
         d0 = self.input_preprocess(ins)  # [B,10,100,100,100] -> [B,64,100,100,100]
 
         # aggregated features from 1st softmax and maxpool for MLP decoders
@@ -508,7 +507,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
 
         if self.use_prefix:
             mask_right, mask_left = self.perception(ins)
-            # print(mask_right.shape) # [B, 8077, 128]
+            print(mask_right.shape) # [B, 8077, 128]
             ins_right = torch.cat((mask_right, right_skill),dim=1)
             ins_left = torch.cat((mask_left, left_skill), dim=1)
             # print(ins_right.shape) # [B, 8154, 128]

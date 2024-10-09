@@ -389,7 +389,6 @@ class PerceiverVoxelLangEncoder(nn.Module):
         mask=None,
     ):
         # preprocess input
-        
         d0 = self.input_preprocess(ins)  # [B,10,100,100,100] -> [B,64,100,100,100]
 
         # aggregated features from 1st softmax and maxpool for MLP decoders
