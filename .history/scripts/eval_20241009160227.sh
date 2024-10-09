@@ -20,10 +20,10 @@ camera=True
 gripper_mode='BimanualDiscrete'
 arm_action_mode='BimanualEndEffectorPoseViaPlanning'
 action_mode='BimanualMoveArmThenGripper'
-tasks=[dual_push_buttons]
+tasks=[coordinated_push_box]
 # tasks=[handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven]
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-eval_type=70000
+eval_type=85000
 eval_episodes=100
 
 echo "I am going to kill the session ${exp_name}_${eval_type}_${eval_episodes}, are you sure? (5s)"
