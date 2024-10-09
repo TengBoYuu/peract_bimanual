@@ -558,8 +558,8 @@ class QAttentionPerActBCAgent(Agent):
             right_action_rot_grip,
             right_action_ignore_collisions,
         )
-        # print(right_action)
-        # print(bounds)
+        print(right_action)
+        print(bounds)
         left_action = (
             left_action_trans,
             left_action_rot_grip,

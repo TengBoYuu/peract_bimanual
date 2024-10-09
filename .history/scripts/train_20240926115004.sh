@@ -52,12 +52,16 @@ use_pre=True
 frozen=False
 
 timesteps=1
-tasks=[pnp]
-demo=19
-episode_length=15
+# 13 tasks in total, without (e)put_item_in_drawer now
+# tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
+# # # bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy
+# # tasks=[bimanual_pick_laptop]
+tasks=[lift]
+demo=20
+episode_length=25
 save_freq=5000
 log_freq=100
-# task_folder="multi"
+task_folder="multi"
 replay_path="/mnt/disk_2/tengbo/replay_real/"
 training_iterations=100001
 wandb_project="real"

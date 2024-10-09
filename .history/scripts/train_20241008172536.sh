@@ -52,7 +52,7 @@ use_pre=True
 frozen=False
 
 timesteps=1
-tasks=[pnp]
+tasks=[lift]
 demo=19
 episode_length=15
 save_freq=5000

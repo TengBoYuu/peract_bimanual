@@ -52,8 +52,8 @@ use_pre=True
 frozen=False
 
 timesteps=1
-tasks=[pnp]
-demo=19
+tasks=[press]
+demo=20
 episode_length=15
 save_freq=5000
 log_freq=100

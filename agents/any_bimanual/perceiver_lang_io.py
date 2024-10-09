@@ -524,7 +524,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
                 # print(x_right.shape) # [b,1024,512]
                 x_left = cross_attn_left(x_l, context=ins_left, mask=mask) + x_l
             else:
-                print(ins.shape)
+                # print(ins.shape)
                 x = cross_attn(x, context=ins, mask=mask) + x
                 x_right, x_left = x.chunk(2, dim=1)
             x_right = cross_ff_right(x_right) + x_right

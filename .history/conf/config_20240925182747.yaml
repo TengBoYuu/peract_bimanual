@@ -10,8 +10,8 @@ rlbench:
     demo_path: /my/demo/path
     episode_length: 25
     cameras: ["front"]
-    camera_resolution: [480,640]
-    scene_bounds: [0.0,-1.0,-0.2,1.0,0.0,0.8]
+    camera_resolution: [640,480]
+    scene_bounds: [-0.3, -0.5, 0.6, 0.7, 0.5, 1.6]
     include_lang_goal_in_obs: True
     instructions: /path
 

@@ -52,9 +52,9 @@ use_pre=True
 frozen=False
 
 timesteps=1
-tasks=[pnp]
-demo=19
-episode_length=15
+tasks=[lift]
+demo=20
+episode_length=25
 save_freq=5000
 log_freq=100
 # task_folder="multi"

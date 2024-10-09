@@ -41,9 +41,9 @@ def _is_stopped_left(demo, i, obs, delta=0.1):
 
 def _keypoint_discovery_bimanual(
     demo: Demo,
-    warm_up=50,
-    cool_down=0,
-    stopping_delta=0.0005, # default 0.1
+    warm_up=42,
+    cool_down=40,
+    stopping_delta=0.00001, # default 0.1
     stopping_buffer=35 # default 4
 ) -> List[int]:
     episode_keypoints = []
@@ -55,7 +55,7 @@ def _keypoint_discovery_bimanual(
     for i, obs in enumerate(demo._observations):
         right_stopped = _is_stopped_right(demo, i, obs.right, stopping_delta)
         left_stopped = _is_stopped_left(demo, i, obs.left, stopping_delta)
-        stopped = (stopped_buffer <= 0) and right_stopped and left_stopped
+        stopped = (stopped_buffer &lt;= 0) and right_stopped and left_stopped
         stopped_buffer = stopping_buffer if stopped else stopped_buffer - 1
         
         # 判断是否为最后一帧
@@ -79,7 +79,7 @@ def _keypoint_discovery_bimanual(
     
     # 清理冗余的关键点
     if (
-        len(episode_keypoints) > 1
+        len(episode_keypoints) &gt; 1
         and (episode_keypoints[-1] - 1) == episode_keypoints[-2]
     ):
         episode_keypoints.pop(-2)

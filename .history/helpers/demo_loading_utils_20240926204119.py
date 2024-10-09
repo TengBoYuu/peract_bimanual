@@ -41,9 +41,9 @@ def _is_stopped_left(demo, i, obs, delta=0.1):
 
 def _keypoint_discovery_bimanual(
     demo: Demo,
-    warm_up=50,
-    cool_down=0,
-    stopping_delta=0.0005, # default 0.1
+    warm_up=42,
+    cool_down=40,
+    stopping_delta=0.00001, # default 0.1
     stopping_buffer=35 # default 4
 ) -> List[int]:
     episode_keypoints = []
