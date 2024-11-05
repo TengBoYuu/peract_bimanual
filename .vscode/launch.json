@@ -1,0 +1,62 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+          "name": "Train",
+          "type": "debugpy",
+          "request": "launch",
+          "program": "${workspaceFolder}/train.py",
+          "args": [
+          //   "method=BIMANUAL_PERACT", 
+            "method=ANY_BIMANUAL", 
+            "rlbench.task_name=debug",
+            "framework.logdir=/mnt/disk_1/tengbo/peract_bimanual-real/log",
+            "rlbench.demo_path=/mnt/disk_1/tengbo/bimanual_data/keypoint/",
+            "framework.start_seed=0",
+            "framework.use_wandb=False",
+            // "framework.use_wandb=True",
+            "framework.wandb_group=debug",
+            "framework.wandb_name=debug",
+          // "framework.wandb_project=real",
+            "ddp.num_devices=1",
+            "replay.batch_size=1",
+            "ddp.master_port=12345",
+            // "rlbench.tasks=[handover]",
+            "rlbench.tasks=[pick_in_two]",
+            "rlbench.demos=10",
+            "rlbench.episode_length=10",
+            "framework.save_freq=2000",
+            "framework.load_existing_weights=False",
+            "framework.use_pretrained=False",
+            "framework.use_skill=False",
+            "replay.path=/mnt/disk_2/tengbo/replay_real_debug/",
+            "rlbench.instructions=/mnt/disk_1/tengbo/peract_bimanual-real/18_lang_template.pkl",
+            "framework.log_freq=1",
+            "replay.timesteps=1",
+            "framework.use_prefix=False",
+            "framework.training_iterations=200001",
+            "framework.frozen=False",
+            "method.transform_augmentation.apply_se3=True",
+            "method.transform_augmentation.aug_xyz=[0.125,0.125,0.125]",
+            "method.transform_augmentation.aug_rpy=[0.0,0.0,45.0]",
+            // "method.transform_augmentation.apply_se3=False",
+            // "method.transform_augmentation.aug_rpy=[0.0,0.0,0.0]"
+          ],
+          "env": {
+            "CUDA_VISIBLE_DEVICES": "2"
+          },
+          "console": "integratedTerminal",
+          "justMyCode": true
+        },
+        {
+          "name": "Python Debugger: Current File",
+          "type": "debugpy",
+          "request": "launch",
+          "program": "${file}",
+          "console": "integratedTerminal"
+        }
+    ]
+}
