@@ -262,6 +262,8 @@ def bimanual_apply_se3_augmentation(
             trans_shift,
             rot_shift_3x3
         )
+        # left_perturbed_action_gripper_4x4 = left_perturbed_action_gripper_4x4.unsqueeze(0)
+        
 
         # convert transformation matrix to translation + quaternion
         # print(left_perturbed_action_gripper_4x4.shape)

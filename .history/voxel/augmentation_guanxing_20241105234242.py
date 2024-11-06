@@ -246,22 +246,28 @@ def bimanual_apply_se3_augmentation(
             .cpu()
             .numpy()
         )
-        
-        # left_perturbed_action_gripper_4x4 = left_action_gripper_4x4.detach().clone().squeeze()  # [4, 4]
-        # left_perturbed_action_gripper_4x4 = transform(
-        #     left_perturbed_action_gripper_4x4,
-        #     center_action.squeeze(),
-        #     trans_shift.squeeze(),
-        #     rot_shift_3x3.squeeze()
-        # )
 
-        left_perturbed_action_gripper_4x4 = left_action_gripper_4x4.detach().clone()  # [4, 4]
+        # rotate then translate the 4x4 keyframe action
+        # left_perturbed_action_gripper_4x4 = torch.bmm(
+        #     left_action_gripper_4x4, rot_shift_4x4
+        # )
+        # left_perturbed_action_gripper_4x4[:, 0:3, 3] += trans_shift
+        
+        left_perturbed_action_gripper_4x4 = left_action_gripper_4x4.detach().clone().squeeze()  # [4, 4]
         left_perturbed_action_gripper_4x4 = transform(
             left_perturbed_action_gripper_4x4,
-            center_action,
-            trans_shift,
-            rot_shift_3x3
+            center_action.squeeze(),
+            trans_shift.squeeze(),
+            rot_shift_3x3.squeeze()
         )
+        # left_perturbed_action_gripper_4x4 = left_perturbed_action_gripper_4x4.unsqueeze(0)
+
+        # left_perturbed_action_gripper_4x4 = transform(
+        #     left_action_gripper_4x4.detach().clone(),
+        #     center_action,
+        #     trans_shift,
+        #     rot_shift_3x3,
+        # )
 
         # convert transformation matrix to translation + quaternion
         # print(left_perturbed_action_gripper_4x4.shape)
@@ -739,10 +745,10 @@ if __name__ == "__main__":
     right_action_trans_out, right_action_rot_grip_out, left_action_trans_out, left_action_rot_grip_out, pcd_out = outputs
 
     # use index 0 if bs > 1
-    right_action_trans_out = right_action_trans_out[0].unsqueeze(0)
-    right_action_rot_grip_out = right_action_rot_grip_out[0].unsqueeze(0)
-    left_action_trans_out = left_action_trans_out[0].unsqueeze(0)
-    left_action_rot_grip_out = left_action_rot_grip_out[0].unsqueeze(0)
+    right_action_trans_out = right_action_trans_out[0]
+    right_action_rot_grip_out = right_action_rot_grip_out[0]
+    left_action_trans_out = left_action_trans_out[0]
+    left_action_rot_grip_out = left_action_rot_grip_out[0]
     # pcd_out = [pcd_out[0]]
 
     # Visualize point clouds
@@ -755,12 +761,12 @@ if __name__ == "__main__":
     res = (bounds[:, 3:] - bounds[:, :3]) / voxel_size
     right_action_trans_out = bounds[:, :3] + res * right_action_trans_out + res / 2
     # right_action_rot_grip_out = right_action_rot_grip_out.squeeze().cpu().numpy()
-    right_action_rot_grip_out = utils.discrete_euler_to_quaternion(right_action_rot_grip_out[:, -4:-1], rot_resolution)
+    right_action_rot_grip_out = utils.discrete_euler_to_quaternion(right_action_rot_grip_out[-4:-1], rot_resolution)
     right_action_gripper_pose = np.concatenate([right_action_trans_out, right_action_rot_grip_out], axis=1)
 
     left_action_trans_out = bounds[:, :3] + res * left_action_trans_out + res / 2
     # left_action_rot_grip_out = left_action_rot_grip_out.squeeze().cpu().numpy()
-    left_action_rot_grip_out = utils.discrete_euler_to_quaternion(left_action_rot_grip_out[:, -4:-1], rot_resolution)
+    left_action_rot_grip_out = utils.discrete_euler_to_quaternion(left_action_rot_grip_out[-4:-1], rot_resolution)
     left_action_gripper_pose = np.concatenate([left_action_trans_out, left_action_rot_grip_out], axis=1)
 
     plot_point_cloud(after_np, left_action_gripper_pose, right_action_gripper_pose, "After Augmentation", os.path.join(root_path, "after.png"))

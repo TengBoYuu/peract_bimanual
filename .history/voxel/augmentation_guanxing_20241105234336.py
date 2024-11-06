@@ -246,22 +246,28 @@ def bimanual_apply_se3_augmentation(
             .cpu()
             .numpy()
         )
-        
-        # left_perturbed_action_gripper_4x4 = left_action_gripper_4x4.detach().clone().squeeze()  # [4, 4]
-        # left_perturbed_action_gripper_4x4 = transform(
-        #     left_perturbed_action_gripper_4x4,
-        #     center_action.squeeze(),
-        #     trans_shift.squeeze(),
-        #     rot_shift_3x3.squeeze()
-        # )
 
-        left_perturbed_action_gripper_4x4 = left_action_gripper_4x4.detach().clone()  # [4, 4]
+        # rotate then translate the 4x4 keyframe action
+        # left_perturbed_action_gripper_4x4 = torch.bmm(
+        #     left_action_gripper_4x4, rot_shift_4x4
+        # )
+        # left_perturbed_action_gripper_4x4[:, 0:3, 3] += trans_shift
+        
+        left_perturbed_action_gripper_4x4 = left_action_gripper_4x4.detach().clone().squeeze()  # [4, 4]
         left_perturbed_action_gripper_4x4 = transform(
             left_perturbed_action_gripper_4x4,
-            center_action,
-            trans_shift,
-            rot_shift_3x3
+            center_action.squeeze(),
+            trans_shift.squeeze(),
+            rot_shift_3x3.squeeze()
         )
+        # left_perturbed_action_gripper_4x4 = left_perturbed_action_gripper_4x4.unsqueeze(0)
+
+        # left_perturbed_action_gripper_4x4 = transform(
+        #     left_action_gripper_4x4.detach().clone(),
+        #     center_action,
+        #     trans_shift,
+        #     rot_shift_3x3,
+        # )
 
         # convert transformation matrix to translation + quaternion
         # print(left_perturbed_action_gripper_4x4.shape)

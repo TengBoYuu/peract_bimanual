@@ -51,7 +51,7 @@ use_pre=False
 frozen=False
 
 timesteps=1
-tasks=[handover,pick_in_one,pick_in_two,lift,press]
+tasks=[handover,pick_in_one,pick_in_two]
 demo=30
 episode_length=10
 save_freq=1000

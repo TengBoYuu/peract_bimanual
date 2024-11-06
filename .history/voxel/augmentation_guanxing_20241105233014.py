@@ -246,22 +246,28 @@ def bimanual_apply_se3_augmentation(
             .cpu()
             .numpy()
         )
-        
-        # left_perturbed_action_gripper_4x4 = left_action_gripper_4x4.detach().clone().squeeze()  # [4, 4]
-        # left_perturbed_action_gripper_4x4 = transform(
-        #     left_perturbed_action_gripper_4x4,
-        #     center_action.squeeze(),
-        #     trans_shift.squeeze(),
-        #     rot_shift_3x3.squeeze()
-        # )
 
-        left_perturbed_action_gripper_4x4 = left_action_gripper_4x4.detach().clone()  # [4, 4]
+        # rotate then translate the 4x4 keyframe action
+        # left_perturbed_action_gripper_4x4 = torch.bmm(
+        #     left_action_gripper_4x4, rot_shift_4x4
+        # )
+        # left_perturbed_action_gripper_4x4[:, 0:3, 3] += trans_shift
+        
+        left_perturbed_action_gripper_4x4 = left_action_gripper_4x4.detach().clone().squeeze()  # [4, 4]
         left_perturbed_action_gripper_4x4 = transform(
             left_perturbed_action_gripper_4x4,
-            center_action,
-            trans_shift,
-            rot_shift_3x3
+            center_action.squeeze(),
+            trans_shift.squeeze(),
+            rot_shift_3x3.squeeze()
         )
+        # left_perturbed_action_gripper_4x4 = left_perturbed_action_gripper_4x4.unsqueeze(0)
+
+        # left_perturbed_action_gripper_4x4 = transform(
+        #     left_action_gripper_4x4.detach().clone(),
+        #     center_action,
+        #     trans_shift,
+        #     rot_shift_3x3,
+        # )
 
         # convert transformation matrix to translation + quaternion
         # print(left_perturbed_action_gripper_4x4.shape)
@@ -713,7 +719,7 @@ if __name__ == "__main__":
     rot_resolution = 5
     device = 'cpu'
 
-    before_np = convert_to_numpy(pcd[0][0])
+    before_np = convert_to_numpy(pcd[0])
     plot_point_cloud(before_np, left_action_gripper_pose, right_action_gripper_pose, "Before Augmentation", os.path.join(root_path, "before.png"))
 
     # Call the function
@@ -739,14 +745,12 @@ if __name__ == "__main__":
     right_action_trans_out, right_action_rot_grip_out, left_action_trans_out, left_action_rot_grip_out, pcd_out = outputs
 
     # use index 0 if bs > 1
-    right_action_trans_out = right_action_trans_out[0].unsqueeze(0)
-    right_action_rot_grip_out = right_action_rot_grip_out[0].unsqueeze(0)
-    left_action_trans_out = left_action_trans_out[0].unsqueeze(0)
-    left_action_rot_grip_out = left_action_rot_grip_out[0].unsqueeze(0)
-    # pcd_out = [pcd_out[0]]
+    right_action_trans_out = right_action_trans_out[0]
+    left_action_trans_out = left_action_trans_out[0]
 
     # Visualize point clouds
-    after_np = convert_to_numpy(pcd_out[0][0])
+
+    after_np = convert_to_numpy(pcd_out[0])
 
     # Visualize and save before and after augmentation
 
