@@ -9,12 +9,12 @@ from yarr.agents.agent import Agent
 from yarr.agents.agent import ActResult
 from yarr.agents.agent import Summary
 from yarr.agents.agent import ScalarSummary
-
-
+import wandb
 from torch.nn.parallel import DistributedDataParallel as DDP
-
+import pickle
 from helpers.preprocess_agent import PreprocessAgent
-
+from rvt.models.option_selector import OptionSelector
+from rvt.models.perception_manager import Perception
 
 from rvt.mvt.mvt import MVT
 from rvt.models import rvt_agent
@@ -43,8 +43,17 @@ def create_agent(cfg: DictConfig):
     mvt_cfg.proprio_dim = cfg.method.low_dim_size
     mvt_cfg.freeze()
 
-
-    agent = RVTAgentWrapper(cfg.framework.checkpoint_name_prefix, cfg.rlbench, mvt_cfg, exp_cfg)
+    with open("/mnt/disk_1/tengbo/peract_bimanual/lang_token.pkl", "rb") as f:
+        embeddings_dict = pickle.load(f)
+    flattened_embeddings = []
+    for key in embeddings_dict.keys():
+        embedding = torch.tensor(embeddings_dict[key]) 
+        flattened_embedding = embedding.view(-1) 
+        flattened_embeddings.append(flattened_embedding)
+    embeddings_matrix = torch.stack(flattened_embeddings)  
+    option_selector = OptionSelector(num_classes=18,embedding_matrix=embeddings_matrix)
+    perception = Perception()
+    agent = RVTAgentWrapper(cfg.framework.checkpoint_name_prefix, cfg.rlbench, mvt_cfg, exp_cfg, option_selector, perception)
 
 
     preprocess_agent = PreprocessAgent(pose_agent=agent)
@@ -54,20 +63,22 @@ def create_agent(cfg: DictConfig):
 
 class RVTAgentWrapper(Agent):
 
-    def __init__(self, checkpoint_name_prefix, rlbench_cfg, mvt_cfg, exp_cfg):
+    def __init__(self, checkpoint_name_prefix, rlbench_cfg, mvt_cfg, exp_cfg, option_selector, perception):
         self._checkpoint_filename = f"{checkpoint_name_prefix}.pt"
         self.rvt_agent = None
         self.rlbench_cfg = rlbench_cfg
         self.mvt_cfg = mvt_cfg
         self.exp_cfg = exp_cfg
         self._summaries = {}
+        self.option_selector = option_selector
+        self.perception = perception
         
     def build(self, training: bool, device=None) -> None:
 
         import torch
         torch.cuda.set_device(device)
         torch.cuda.empty_cache()
-
+        self._device = device
         if isinstance(device, int):
             device = f"cuda:{device}"
 
@@ -83,6 +94,8 @@ class RVTAgentWrapper(Agent):
         self.rvt_agent = rvt_agent.RVTAgent(
             network=rvt,
             #image_resolution=self.rlbench_cfg.camera_resolution,
+            option_selector=self.option_selector,
+            perception=self.perception,
             stage_two=False,
             add_lang=self.mvt_cfg.add_lang,
             scene_bounds=self.rlbench_cfg.scene_bounds,
@@ -90,6 +103,7 @@ class RVTAgentWrapper(Agent):
             log_dir="/tmp/eval_run",
             **self.exp_cfg.peract,
             **self.exp_cfg.rvt,
+
         )
 
         self.rvt_agent.build(training, device)
@@ -100,14 +114,29 @@ class RVTAgentWrapper(Agent):
         # RVT is based on the PerAct's Colab version.
         replay_sample["lang_goal_embs"] = replay_sample["lang_token_embs"]
         replay_sample["tasks"] = self.exp_cfg.tasks.split(',')
-
+        
         update_dict = self.rvt_agent.update(step, replay_sample)
 
 
         for key, val in self.rvt_agent.loss_log.items():
             self._summaries[key] = np.mean(np.array(val))
-
-
+        device = self._device
+        rank = device
+        if step % 10 == 0 and rank == 0:
+            wandb.log({
+                'train/grip_loss': update_dict["grip_loss"],
+                'train/trans_loss': update_dict["trans_loss"],
+                'train/rot_loss': (update_dict["rot_loss_x"]+update_dict["rot_loss_y"]+update_dict["rot_loss_z"]),
+                'train/collision_loss': update_dict["collision_loss"],
+                'train/total_loss': update_dict["total_loss"],
+            }, step=step)
+        self._wandb_summaries = {
+                'losses/grip_loss': update_dict["grip_loss"],
+                'losses/trans_loss': update_dict["trans_loss"],
+                'losses/rot_loss': (update_dict["rot_loss_x"]+update_dict["rot_loss_y"]+update_dict["rot_loss_z"]),
+                'losses/collision_loss': update_dict["collision_loss"],
+                'losses/total_loss': update_dict["total_loss"],
+        }
         return {
             "total_losses": update_dict["total_loss"],
         }
@@ -126,9 +155,16 @@ class RVTAgentWrapper(Agent):
             summaries.append(ScalarSummary(f"RVT/{k}", v))
         return summaries
 
+    def update_wandb_summaries(self):
+        summaries = dict()
+
+        for k, v in self._wandb_summaries.items():
+            summaries[k] = v
+        return summaries
+
     def act_summaries(self) -> List[Summary]:
         return []
-
+    
     def load_weights(self, savedir: str) -> None:
         """
         copied from RVT
@@ -137,13 +173,17 @@ class RVTAgentWrapper(Agent):
         weight_file = os.path.join(savedir, self._checkpoint_filename)
         state_dict = torch.load(weight_file, map_location=device)
 
+        skill = self.rvt_agent.option_selector
+        perception = self.rvt_agent.perception_manager
         model = self.rvt_agent._network
         optimizer = self.rvt_agent._optimizer
         lr_sched = self.rvt_agent._lr_sched
 
         if isinstance(model, DDP):
             model = model.module
-        
+        # if state_dict["skill_state"]:
+        #     skill.load_state_dict(state_dict["skill_state"])
+        #     perception.load_state_dict(state_dict["perception_state"])  
         model.load_state_dict(state_dict["model_state"])
         optimizer.load_state_dict(state_dict["optimizer_state"])
         lr_sched.load_state_dict(state_dict["lr_sched_state"])
@@ -157,17 +197,23 @@ class RVTAgentWrapper(Agent):
 
         weight_file = os.path.join(savedir, self._checkpoint_filename)
 
+        skill = self.rvt_agent.option_selector
+        perception = self.rvt_agent.perception_manager
         model = self.rvt_agent._network
         optimizer = self.rvt_agent._optimizer
         lr_sched = self.rvt_agent._lr_sched
 
         if isinstance(model, DDP):
             model = model.module
-
+        
+        skill_state = skill.state_dict()
+        perception_state = perception.state_dict()
         model_state = model.state_dict()
 
         torch.save(
             {
+                "skill_state": skill_state,
+                "perception_state": perception_state,
                 "model_state": model_state,
                 "optimizer_state": optimizer.state_dict(),
                 "lr_sched_state": lr_sched.state_dict(),

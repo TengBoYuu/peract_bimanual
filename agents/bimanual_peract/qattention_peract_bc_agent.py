@@ -17,7 +17,10 @@ from yarr.agents.agent import (
     ImageSummary,
     Summary,
 )
-
+import cv2
+import io
+import PIL.Image as Image
+import matplotlib.pyplot as plt
 from helpers import utils
 from helpers.utils import visualise_voxel, stack_on_channel
 from voxel.voxel_grid import VoxelGrid
@@ -30,6 +33,7 @@ from helpers.optim.lamb import Lamb
 import wandb
 from termcolor import colored, cprint
 from torch.nn.parallel import DistributedDataParallel as DDP
+import plotly.graph_objects as go
 NAME = "QAttentionAgent"
 
 
@@ -48,6 +52,7 @@ class QFunction(nn.Module):
         self._voxelizer = voxelizer
         self._bounds_offset = bounds_offset
         self._qnet = perceiver_encoder.to(device)
+
         # distributed training
         if training:
             self._qnet = DDP(self._qnet, device_ids=[device])
@@ -86,13 +91,12 @@ class QFunction(nn.Module):
         rgb_pcd,
         proprio,
         pcd,
-        rgb,
         lang_goal_emb,
         lang_token_embs,
         bounds=None,
         prev_bounds=None,
         prev_layer_voxel_grid=None,
-        use_skill=False,
+        eval=False,
     ):
         # rgb_pcd will be list of list (list of [rgb, pcd])
         b = rgb_pcd[0][0].shape[0]
@@ -100,6 +104,16 @@ class QFunction(nn.Module):
 
         # flatten RGBs and Pointclouds
         rgb = [rp[0] for rp in rgb_pcd]
+
+        if eval:
+            rgb_swapped = []
+            for img in rgb:
+                img = img.squeeze(0) 
+                img_swapped = img[[2, 1, 0], :, :] 
+                img_swapped = img_swapped.unsqueeze(0) 
+                rgb_swapped.append(img_swapped)
+            rgb = rgb_swapped
+
         feat_size = rgb[0].shape[1]
         flat_imag_features = torch.cat(
             [p.permute(0, 2, 3, 1).reshape(b, -1, feat_size) for p in rgb], 1
@@ -127,6 +141,7 @@ class QFunction(nn.Module):
             bounds,
             prev_bounds,
         )
+
         return split_pred, voxel_grid
 
 
@@ -161,6 +176,7 @@ class QAttentionPerActBCAgent(Agent):
         transform_augmentation_rot_resolution: int = 5,
         optimizer_type: str = "adam",
         num_devices: int = 1,
+        cfg = None,
     ):
         self._layer = layer
         self._coordinate_bounds = coordinate_bounds
@@ -198,7 +214,7 @@ class QAttentionPerActBCAgent(Agent):
 
         self._cross_entropy_loss = nn.CrossEntropyLoss(reduction="none")
         self._name = NAME + "_layer" + str(self._layer)
-
+        self.cfg = cfg
     def build(self, training: bool, device: torch.device = None):
         self._training = training
 
@@ -342,16 +358,13 @@ class QAttentionPerActBCAgent(Agent):
     def _preprocess_inputs(self, replay_sample):
         obs = []
         pcds = []
-        rgbs = []
         self._crop_summary = []
         for n in self._camera_names:
             rgb = replay_sample["%s_rgb" % n]
             pcd = replay_sample["%s_point_cloud" % n]
-
             obs.append([rgb, pcd])
             pcds.append(pcd)
-            rgbs.append(rgb)
-        return obs, pcds, rgbs
+        return obs, pcds
 
     def _act_preprocess_inputs(self, observation):
         obs, pcds = [], []
@@ -434,14 +447,14 @@ class QAttentionPerActBCAgent(Agent):
 
     def update(self, step: int, replay_sample: dict) -> dict:
         right_action_trans = replay_sample["right_trans_action_indicies"][
-            ..., self._layer * 3 : self._layer * 3 + 3
+            :, self._layer * 3 : self._layer * 3 + 3
         ].int()
         right_action_rot_grip = replay_sample["right_rot_grip_action_indicies"].int()
         right_action_gripper_pose = replay_sample["right_gripper_pose"]
         right_action_ignore_collisions = replay_sample["right_ignore_collisions"].int()
 
         left_action_trans = replay_sample["left_trans_action_indicies"][
-            ..., self._layer * 3 : self._layer * 3 + 3
+            :, self._layer * 3 : self._layer * 3 + 3
         ].int()
         left_action_rot_grip = replay_sample["left_rot_grip_action_indicies"].int()
         left_action_gripper_pose = replay_sample["left_gripper_pose"]
@@ -452,7 +465,6 @@ class QAttentionPerActBCAgent(Agent):
         prev_layer_voxel_grid = replay_sample.get("prev_layer_voxel_grid", None)
         prev_layer_bounds = replay_sample.get("prev_layer_bounds", None)
         device = self._device
-
         rank = device
         bounds = self._coordinate_bounds.to(device)
         if self._layer > 0:
@@ -474,18 +486,19 @@ class QAttentionPerActBCAgent(Agent):
         else:
             right_bounds = bounds
             left_bounds = bounds
-
+        right_gt = right_action_gripper_pose[0]
+        right_gt = right_gt[:3]
         right_proprio = None
         left_proprio = None
         if self._include_low_dim_state:
             right_proprio = replay_sample["right_low_dim_state"]
             left_proprio = replay_sample["left_low_dim_state"]
-        
+
         # ..TODO::
         # Can we add the coordinates of both robots?
         #
 
-        obs, pcd, rgbs = self._preprocess_inputs(replay_sample)
+        obs, pcd = self._preprocess_inputs(replay_sample)
 
         # batch size
         bs = pcd[0].shape[0]
@@ -495,104 +508,38 @@ class QAttentionPerActBCAgent(Agent):
         #
 
         # SE(3) augmentation of point clouds and actions
-
-        # print(len(pcd)) # 5
-        # print(pcd[0].shape) # [b, timesteps, 3, 256, 256]
-        # print(right_action_gripper_pose.shape) # [b, timesteps, 7]
-        # print(len(right_action_trans.shape)) # [b, timesteps, 3]
-        # print(right_action_rot_grip.shape) # [b, timesteps, 4]
-        # print(right_action_trans[:,0].shape) # [b, 3]
-
         if self._transform_augmentation:
-            num_cam = len(pcd)
-            from voxel import augmentation
-            right_action_trans_aug = []
-            right_action_rot_grip_aug = []
-            left_action_trans_aug = []
-            left_action_rot_grip_aug = []
-            pcd_aug = []
-            if len(right_action_trans.shape) == 3:
-                timesteps = right_action_trans.shape[1]
-                for t in range(timesteps):
-                    pcd_list = []
-                    for i in range(num_cam):
-                        pcd_list.append(pcd[i][:,4])
+            from voxel import augmentation, augmentation_guanxing
 
-                    (
-                        right_action_trans_t,
-                        right_action_rot_grip_t,
-                        left_action_trans_t,
-                        left_action_rot_grip_t,
-                        pcd_t,
-                    ) = augmentation.bimanual_apply_se3_augmentation(
-                        pcd_list,
-                        right_action_gripper_pose[:,t],
-                        right_action_trans[:,t],
-                        right_action_rot_grip[:,t],
-                        left_action_gripper_pose[:,t],
-                        left_action_trans[:,t],
-                        left_action_rot_grip[:,t],
-                        bounds,
-                        self._layer,
-                        self._transform_augmentation_xyz,
-                        self._transform_augmentation_rpy,
-                        self._transform_augmentation_rot_resolution,
-                        self._voxel_size,
-                        self._rotation_resolution,
-                        self._device,
-                    )
-                    right_action_trans_aug.append(right_action_trans_t)
-                    right_action_rot_grip_aug.append(right_action_rot_grip_t)
-                    left_action_trans_aug.append(left_action_trans_t)
-                    left_action_rot_grip_aug.append(left_action_rot_grip_t)
-                    pcd_aug.append(pcd_t)
-
-                right_action_trans = torch.stack(right_action_trans_aug, dim=1)
-                right_action_rot_grip = torch.stack(right_action_rot_grip_aug, dim=1)
-                left_action_trans = torch.stack(left_action_trans_aug, dim=1)
-                left_action_rot_grip = torch.stack(left_action_rot_grip_aug, dim=1)
-                final_pcd_list = [[] for _ in range(5)]  # [[], [], [], [], []]
-                for t in range(len(pcd_aug)):
-                    for i in range(num_cam):
-                        final_pcd_list[i].append(pcd_aug[t][i])
-                for i in range(num_cam):
-                    final_pcd_list[i] = torch.stack(final_pcd_list[i], dim=1)  # 在时间步维度上堆叠
-                pcd = final_pcd_list
-                # print(len(pcd)) # 5
-                # print(pcd[0].shape) # [b, timesteps, 3, 256, 256]
-                # print(right_action_gripper_pose.shape) # [b, timesteps, 7]
-                # print(len(right_action_trans.shape)) # [b, timesteps, 3]
-                # print(right_action_rot_grip.shape) # [b, timesteps, 4]
-            else:
-                (
-                    right_action_trans,
-                    right_action_rot_grip,
-                    left_action_trans,
-                    left_action_rot_grip,
-                    pcd,
-                ) = augmentation.bimanual_apply_se3_augmentation(
-                    pcd,
-                    right_action_gripper_pose,
-                    right_action_trans,
-                    right_action_rot_grip,
-                    left_action_gripper_pose,
-                    left_action_trans,
-                    left_action_rot_grip,
-                    bounds,
-                    self._layer,
-                    self._transform_augmentation_xyz,
-                    self._transform_augmentation_rpy,
-                    self._transform_augmentation_rot_resolution,
-                    self._voxel_size,
-                    self._rotation_resolution,
-                    self._device,
-                )
+            (
+                right_action_trans,
+                right_action_rot_grip,
+                left_action_trans,
+                left_action_rot_grip,
+                pcd,
+            ) = augmentation_guanxing.bimanual_apply_se3_augmentation(
+                pcd,
+                right_action_gripper_pose,
+                right_action_trans,
+                right_action_rot_grip,
+                left_action_gripper_pose,
+                left_action_trans,
+                left_action_rot_grip,
+                bounds,
+                self._layer,
+                self._transform_augmentation_xyz,
+                self._transform_augmentation_rpy,
+                self._transform_augmentation_rot_resolution,
+                self._voxel_size,
+                self._rotation_resolution,
+                self._device,
+            )
         else:
             right_action_trans = right_action_trans.int()
             left_action_trans = left_action_trans.int()
 
         proprio = torch.cat((right_proprio, left_proprio), dim=1)
-        print(proprio.shape)
+
         right_action = (
             right_action_trans,
             right_action_rot_grip,
@@ -603,19 +550,16 @@ class QAttentionPerActBCAgent(Agent):
             left_action_rot_grip,
             left_action_ignore_collisions,
         )
-        # print(lang_token_embs.shape) # [b, timesteps, 77, 512]
         # forward pass
         q, voxel_grid = self._q(
             obs,
             proprio,
             pcd,
-            rgbs,
             lang_goal_emb,
             lang_token_embs,
             bounds,
             prev_layer_bounds,
             prev_layer_voxel_grid,
-            
         )
 
         (
@@ -644,9 +588,18 @@ class QAttentionPerActBCAgent(Agent):
             left_q_trans, left_q_rot_grip, left_q_collision
         )
 
-
-        right_q_trans_loss, right_q_rot_loss, right_q_grip_loss, right_q_collision_loss = 0.0, 0.0, 0.0, 0.0
-        left_q_trans_loss, left_q_rot_loss, left_q_grip_loss, left_q_collision_loss = 0.0, 0.0, 0.0, 0.0
+        (
+            right_q_trans_loss,
+            right_q_rot_loss,
+            right_q_grip_loss,
+            right_q_collision_loss,
+        ) = (0.0, 0.0, 0.0, 0.0)
+        left_q_trans_loss, left_q_rot_loss, left_q_grip_loss, left_q_collision_loss = (
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+        )
 
         # translation one-hot
         right_action_trans_one_hot = self._action_trans_one_hot_zeros.clone().detach()
@@ -744,18 +697,31 @@ class QAttentionPerActBCAgent(Agent):
             left_q_grip_flat = left_q_rot_grip[:, 3 * self._num_rotation_classes :]
             left_q_ignore_collisions_flat = left_q_collision
 
-
             # rotation loss
-            right_q_rot_loss += self._celoss(right_q_rot_x_flat, right_action_rot_x_one_hot)
-            right_q_rot_loss += self._celoss(right_q_rot_y_flat, right_action_rot_y_one_hot)
-            right_q_rot_loss += self._celoss(right_q_rot_z_flat, right_action_rot_z_one_hot)
+            right_q_rot_loss += self._celoss(
+                right_q_rot_x_flat, right_action_rot_x_one_hot
+            )
+            right_q_rot_loss += self._celoss(
+                right_q_rot_y_flat, right_action_rot_y_one_hot
+            )
+            right_q_rot_loss += self._celoss(
+                right_q_rot_z_flat, right_action_rot_z_one_hot
+            )
 
-            left_q_rot_loss += self._celoss(left_q_rot_x_flat, left_action_rot_x_one_hot)
-            left_q_rot_loss += self._celoss(left_q_rot_y_flat, left_action_rot_y_one_hot)
-            left_q_rot_loss += self._celoss(left_q_rot_z_flat, left_action_rot_z_one_hot)
+            left_q_rot_loss += self._celoss(
+                left_q_rot_x_flat, left_action_rot_x_one_hot
+            )
+            left_q_rot_loss += self._celoss(
+                left_q_rot_y_flat, left_action_rot_y_one_hot
+            )
+            left_q_rot_loss += self._celoss(
+                left_q_rot_z_flat, left_action_rot_z_one_hot
+            )
 
             # gripper loss
-            right_q_grip_loss += self._celoss(right_q_grip_flat, right_action_grip_one_hot)
+            right_q_grip_loss += self._celoss(
+                right_q_grip_flat, right_action_grip_one_hot
+            )
             left_q_grip_loss += self._celoss(left_q_grip_flat, left_action_grip_one_hot)
 
             # collision loss
@@ -766,12 +732,11 @@ class QAttentionPerActBCAgent(Agent):
                 left_q_ignore_collisions_flat, left_action_ignore_collisions_one_hot
             )
 
-
         q_trans_loss = right_q_trans_loss + left_q_trans_loss
         q_rot_loss = right_q_rot_loss + left_q_rot_loss
         q_grip_loss = right_q_grip_loss + left_q_grip_loss
         q_collision_loss = right_q_collision_loss + left_q_collision_loss
-        
+
         combined_losses = (
             (q_trans_loss * self._trans_loss_weight)
             + (q_rot_loss * self._rot_loss_weight)
@@ -788,38 +753,31 @@ class QAttentionPerActBCAgent(Agent):
                 'train/collision_loss': q_collision_loss.mean(),
                 'train/total_loss': total_loss,
             }, step=step)
-                    
+
         self._optimizer.zero_grad()
         total_loss.backward()
         self._optimizer.step()
-        torch.cuda.empty_cache()
+
         self._summaries = {
             "losses/total_loss": total_loss,
             "losses/trans_loss": q_trans_loss.mean(),
             "losses/rot_loss": q_rot_loss.mean() if with_rot_and_grip else 0.0,
             "losses/grip_loss": q_grip_loss.mean() if with_rot_and_grip else 0.0,
-
             "losses/right/trans_loss": q_trans_loss.mean(),
             "losses/right/rot_loss": q_rot_loss.mean() if with_rot_and_grip else 0.0,
             "losses/right/grip_loss": q_grip_loss.mean() if with_rot_and_grip else 0.0,
-            "losses/right/collision_loss": q_collision_loss.mean() if with_rot_and_grip else 0.0,
-
+            "losses/right/collision_loss": q_collision_loss.mean()
+            if with_rot_and_grip
+            else 0.0,
             "losses/left/trans_loss": q_trans_loss.mean(),
             "losses/left/rot_loss": q_rot_loss.mean() if with_rot_and_grip else 0.0,
             "losses/left/grip_loss": q_grip_loss.mean() if with_rot_and_grip else 0.0,
-            "losses/left/collision_loss": q_collision_loss.mean() if with_rot_and_grip else 0.0,
-
+            "losses/left/collision_loss": q_collision_loss.mean()
+            if with_rot_and_grip
+            else 0.0,
             "losses/collision_loss": q_collision_loss.mean()
             if with_rot_and_grip
             else 0.0,
-        }
-
-        self._wandb_summaries = {
-            'losses/total_loss': total_loss,
-            'losses/trans_loss': q_trans_loss.mean(),
-            'losses/rot_loss': q_rot_loss.mean() if with_rot_and_grip else 0.,
-            'losses/grip_loss': q_grip_loss.mean() if with_rot_and_grip else 0.,
-            'losses/collision_loss': q_collision_loss.mean() if with_rot_and_grip else 0.
         }
 
         if self._lr_scheduler:
@@ -848,13 +806,149 @@ class QAttentionPerActBCAgent(Agent):
         else:
             prev_layer_bounds = prev_layer_bounds + [bounds]
 
+        q_trans_vis=True
+        if step % self.cfg.framework.log_freq == 0 and rank == 0:
+            print("right_predict: ",self._right_vis_max_coordinate)
+            print("right_gt: ",self._right_vis_gt_coordinate)
+            print("left_predict: ",self._left_vis_max_coordinate)
+            print("left_gt: ",self._left_vis_gt_coordinate)
+            rendered_img_right = visualise_voxel(
+                voxel_grid[0].cpu().detach().numpy(),    # [10, 100, 100, 100]
+                self._right_vis_translation_qvalue.detach().cpu().numpy() if q_trans_vis else None,
+                self._right_vis_max_coordinate.detach().cpu().numpy(),
+                self._right_vis_gt_coordinate.detach().cpu().numpy(),
+                voxel_size=0.045,
+                # voxel_size=0.1,   # more focus ??
+                # rotation_amount=np.deg2rad(-90),
+                # highlight_alpha=1.0,
+                # alpha=0.4,
+            )
+            rendered_img_left = visualise_voxel(
+                voxel_grid[0].cpu().detach().numpy(),    # [10, 100, 100, 100]
+                self._left_vis_translation_qvalue.detach().cpu().numpy() if q_trans_vis else None,
+                self._left_vis_max_coordinate.detach().cpu().numpy(),
+                self._left_vis_gt_coordinate.detach().cpu().numpy(),
+                voxel_size=0.045,
+                # voxel_size=0.1,   # more focus ??
+                # rotation_amount=np.deg2rad(-90),
+                # highlight_alpha=1.0,
+                # alpha=0.4,
+            )
+            # print(rendered_img.shape) # [480,640,3]
+            os.makedirs('recon', exist_ok=True)
+            # plot three images in one row with subplots:
+            # src, tgt, pred
+
+            rgb_src = obs[0][0][0].squeeze(0).permute(1, 2, 0)  / 2 + 0.5
+            # rgb_src[1] = obs[0][0][1].squeeze(0).permute(1, 2, 0)  / 2 + 0.5
+
+            fig, axs = plt.subplots(1, 4, figsize=(9, 3))
+            # src
+            axs[0].imshow(rgb_src.cpu().numpy())
+            axs[0].title.set_text('src')
+
+            axs[1].imshow(rendered_img_right)
+            axs[1].text(0, 40, 'predicted', color='blue')
+            axs[1].text(0, 80, 'gt', color='red')
+            axs[2].imshow(rendered_img_left)
+            axs[2].text(0, 40, 'predicted', color='blue')
+            axs[2].text(0, 80, 'gt', color='red')
+            # remove axis
+            for ax in axs:
+                ax.axis('off')
+            plt.tight_layout()
+
+            ####pcd####
+            # print(right_coords[0])
+            # point_cloud = pcd[0].squeeze(0)
+            # # point_cloud = point_cloud[0]
+            # # print(point_cloud.shape)
+            # x, y, z = point_cloud[0].view(-1), point_cloud[1].view(-1), point_cloud[2].view(-1)
+            # points = torch.stack((x, y, z), dim=1).cpu().numpy()
+            # print("Points shape:", points.shape)
+            # right_gt = right_gt.cpu().numpy().reshape(1, 3)
+
+            # fig = go.Figure()
+
+            # fig.add_trace(go.Scatter3d(
+            #     x=points[:, 0],
+            #     y=points[:, 1],
+            #     z=points[:, 2],
+            #     mode='markers',
+            #     marker=dict(
+            #         size=2,
+            #         color='red' 
+            #     ),
+            #     name='Point Cloud'
+            # ))
+
+            # fig.add_trace(go.Scatter3d(
+            #     x=[right_gt[0, 0]],
+            #     y=[right_gt[0, 1]],
+            #     z=[right_gt[0, 2]],
+            #     mode='markers',
+            #     marker=dict(
+            #         size=10,
+            #         color='green' 
+            #     ),
+            #     name='Right GT'
+            # ))
+
+            # # fig.add_trace(go.Scatter3d(
+            # #     x=[0.004],
+            # #     y=[-0.995],
+            # #     z=[-0.4925],
+            # #     mode='markers',
+            # #     marker=dict(
+            # #         size=10,
+            # #         color='blue'
+            # #     ),
+            # #     name='Right predicted'
+            # # ))
+
+            # fig.update_layout(
+            #     title="Point Cloud Visualization with Right GT",
+            #     scene=dict(
+            #         xaxis_title='X',
+            #         yaxis_title='Y',
+            #         zaxis_title='Z'
+            #     )
+            # )
+
+            # base_path = "/mnt/disk_1/tengbo/peract_bimanual/pcd/3d_scatter_plot_"
+            # x = 1
+            # while True:
+            #     output_file = f"{base_path}{x}.html"
+            #     if not os.path.exists(output_file):
+            #         break
+            #     x += 1
+            # fig.write_html(output_file)
+            # print(f"The 3D scatter plot has been saved to {output_file}.")
+            #########################
+
+            if rank == 0:
+                if self.cfg.framework.use_wandb:
+                    # save to buffer and write to wandb
+                    buf = io.BytesIO()
+                    plt.savefig(buf, format='png')
+                    buf.seek(0)
+
+                    image = Image.open(buf)
+                    wandb.log({"eval/recon_img": wandb.Image(image)}, step=step)
+
+                    buf.close()
+                    cprint(f'Saved to wandb', 'cyan')
+                else:
+                    plt.savefig(f'recon/{step}_rgb.png')
+                    workdir = os.getcwd()
+                    cprint(f'Saved {workdir}/recon/{step}_rgb.png locally', 'cyan')
         return {
             "total_loss": total_loss,
             "prev_layer_voxel_grid": prev_layer_voxel_grid,
             "prev_layer_bounds": prev_layer_bounds,
         }
 
-    def act(self, step: int,observation: dict,deterministic=False) -> ActResult:
+    def act(self, step: int, observation: dict, deterministic=False) -> ActResult:
         deterministic = True
         bounds = self._coordinate_bounds
         prev_layer_voxel_grid = observation.get("prev_layer_voxel_grid", None)
@@ -919,6 +1013,7 @@ class QAttentionPerActBCAgent(Agent):
             bounds,
             prev_layer_bounds,
             prev_layer_voxel_grid,
+            eval=True,
         )
 
         # softmax Q predictions
@@ -1004,6 +1099,28 @@ class QAttentionPerActBCAgent(Agent):
         self._left_act_max_coordinate = left_coords[0]
         self._left_act_qvalues = left_q_trans[0].detach()
 
+        # print("predicted right: ",right_coords)
+        # print("predicted left: ", left_coords)
+        # q_trans_vis = False
+        # self._right_vis_max_coordinate = right_coords[0]
+        # self._left_vis_max_coordinate = left_coords[0]
+        # rendered_img_right = visualise_voxel(
+        #     vox_grid[0].cpu().detach().numpy(),    # [10, 100, 100, 100]
+        #     self._right_vis_translation_qvalue.detach().cpu().numpy() if q_trans_vis else None,
+        #     self._right_vis_max_coordinate.detach().cpu().numpy(), 
+        #     self._left_vis_max_coordinate.detach().cpu().numpy(),
+        #     voxel_size=0.045,
+        #     # rotation_amount=np.deg2rad(-90),
+        # )
+        # folder_path = "/mnt/disk_1/tengbo/peract_bimanual/eval_voxel"
+        # os.makedirs(folder_path, exist_ok=True)
+        # file_list = os.listdir(folder_path)
+        # file_list = [f for f in file_list if f.endswith('.png')]
+        # file_count = len(file_list)
+        # filename = f"voxel_{file_count}.png"
+        # file_path = os.path.join(folder_path, filename)
+        # cv2.imwrite(file_path, rendered_img_right)
+
         action = (
             right_coords,
             right_rot_grip_action,
@@ -1016,7 +1133,7 @@ class QAttentionPerActBCAgent(Agent):
         return ActResult(action, observation_elements=observation_elements, info=info)
 
     def update_summaries(self) -> List[Summary]:
-        # voxel_grid = self._vis_voxel_grid.detach().cpu().numpy()
+        voxel_grid = self._vis_voxel_grid.detach().cpu().numpy()
         summaries = []
         # summaries.append(
         #     ImageSummary(
@@ -1062,76 +1179,30 @@ class QAttentionPerActBCAgent(Agent):
 
         return summaries
 
-    def update_wandb_summaries(self):
-        summaries = dict()
-
-        for k, v in self._wandb_summaries.items():
-            summaries[k] = v
-        return summaries
-    
     def act_summaries(self) -> List[Summary]:
-        # voxel_grid = self._act_voxel_grid.cpu().numpy()
-        # right_q_attention = self._right_act_qvalues.cpu().numpy()
-        # right_highlight_coordinate = self._right_act_max_coordinate.cpu().numpy()
-        # right_visualization = visualise_voxel(
-        #     voxel_grid, right_q_attention, right_highlight_coordinate
-        # )
+        voxel_grid = self._act_voxel_grid.cpu().numpy()
+        right_q_attention = self._right_act_qvalues.cpu().numpy()
+        right_highlight_coordinate = self._right_act_max_coordinate.cpu().numpy()
+        right_visualization = visualise_voxel(
+            voxel_grid, right_q_attention, right_highlight_coordinate
+        )
 
-        # left_q_attention = self._left_act_qvalues.cpu().numpy()
-        # left_highlight_coordinate = self._left_act_max_coordinate.cpu().numpy()
-        # left_visualization = visualise_voxel(
-        #     voxel_grid, left_q_attention, left_highlight_coordinate
-        # )
+        left_q_attention = self._left_act_qvalues.cpu().numpy()
+        left_highlight_coordinate = self._left_act_max_coordinate.cpu().numpy()
+        left_visualization = visualise_voxel(
+            voxel_grid, left_q_attention, left_highlight_coordinate
+        )
 
-        # return [
-        #     ImageSummary(
-        #         f"{self._name}/right_act_Qattention",
-        #         transforms.ToTensor()(right_visualization),
-        #     ),
-        #     ImageSummary(
-        #         f"{self._name}/left_act_Qattention",
-        #         transforms.ToTensor()(left_visualization),
-        #     ),
-        # ]
-        return []
-
-    # def load_weights(self, savedir: str):
-    #     device = (
-    #         self._device
-    #         if not self._training
-    #         else torch.device("cuda:%d" % self._device)
-    #     )
-    #     weight_file = os.path.join(savedir, "%s.pt" % self._name)
-    #     state_dict = torch.load(weight_file, map_location=device)
-
-    #     # load only keys that are in the current model
-    #     merged_state_dict = self._q.state_dict()
-    #     for k, v in state_dict.items():
-    #         if not self._training:
-    #             k = k.replace("_qnet.module", "_qnet")
-    #         if k in merged_state_dict:
-    #             merged_state_dict[k] = v
-    #         else:
-    #             if "_voxelizer" not in k:
-    #                 logging.warning("key %s not found in checkpoint" % k)
-    #     if not self._training:
-    #         # reshape voxelizer weights
-    #         b = merged_state_dict["_voxelizer._ones_max_coords"].shape[0]
-    #         merged_state_dict["_voxelizer._ones_max_coords"] = merged_state_dict[
-    #             "_voxelizer._ones_max_coords"
-    #         ][0:1]
-    #         flat_shape = merged_state_dict["_voxelizer._flat_output"].shape[0]
-    #         merged_state_dict["_voxelizer._flat_output"] = merged_state_dict[
-    #             "_voxelizer._flat_output"
-    #         ][0 : flat_shape // b]
-    #         merged_state_dict["_voxelizer._tiled_batch_indices"] = merged_state_dict[
-    #             "_voxelizer._tiled_batch_indices"
-    #         ][0:1]
-    #         merged_state_dict["_voxelizer._index_grid"] = merged_state_dict[
-    #             "_voxelizer._index_grid"
-    #         ][0:1]
-    #     self._q.load_state_dict(merged_state_dict)
-    #     print("loaded weights from %s" % weight_file)
+        return [
+            ImageSummary(
+                f"{self._name}/right_act_Qattention",
+                transforms.ToTensor()(right_visualization),
+            ),
+            ImageSummary(
+                f"{self._name}/left_act_Qattention",
+                transforms.ToTensor()(left_visualization),
+            ),
+        ]
 
     def load_weights(self, savedir: str):
         device = (
@@ -1139,73 +1210,21 @@ class QAttentionPerActBCAgent(Agent):
             if not self._training
             else torch.device("cuda:%d" % self._device)
         )
-
         weight_file = os.path.join(savedir, "%s.pt" % self._name)
         state_dict = torch.load(weight_file, map_location=device)
-        merged_state_dict = self._q.state_dict()
 
+        # load only keys that are in the current model
+        merged_state_dict = self._q.state_dict()
         for k, v in state_dict.items():
             if not self._training:
                 k = k.replace("_qnet.module", "_qnet")
-            # cross_attn
-            if k.startswith("_qnet.module.decoder_cross_attn"):
-                right_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_right")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_left")
-                merged_state_dict[left_key] = v
-            # trans_decoder
-            elif k.startswith("_qnet.module.trans_decoder"):
-                right_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.right_trans_decoder")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.left_trans_decoder")
-                merged_state_dict[left_key] = v
-            # dense0
-            elif k.startswith("_qnet.module.dense0"):
-                right_key = k.replace("_qnet.module.dense0", "_qnet.module.right_dense0")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.dense0", "_qnet.module.left_dense0")
-                merged_state_dict[left_key] = v
-            # dense1
-            elif k.startswith("_qnet.module.dense1"):
-                right_key = k.replace("_qnet.module.dense1", "_qnet.module.right_dense1")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.dense1", "_qnet.module.left_dense1")
-                merged_state_dict[left_key] = v
-            # collision
-            elif k.startswith("_qnet.module.rot_grip_collision_ff"):
-                right_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.right_rot_grip_collision_ff")
-                merged_state_dict[right_key] = v
-                
-                left_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.left_rot_grip_collision_ff")
-                merged_state_dict[left_key] = v
-            # proprio
-            elif k == '_qnet.module.proprio_preprocess.linear.weight':
-                new_v = torch.cat([v,v], dim=1)
-                merged_state_dict['_qnet.module.proprio_preprocess.linear.weight'] = new_v
-            # pos_with_lang
-            elif k == "_qnet.module.pos_encoding":
-                if v.shape[1] != 8077:
-                    lang_max_seq_len = 77
-                    spatial_size = v.shape[1]
-                    input_dim_before_seq = v.shape[-1]
-                    flattened_v = v.view(1, -1, input_dim_before_seq)  # (1, spatial_size**3, self.input_dim_before_seq)
-                    new_pos_encoding = torch.randn(1, lang_max_seq_len, input_dim_before_seq, device=device)
-                    merged_pos_encoding = torch.cat([flattened_v, new_pos_encoding], dim=1)  # (1, lang_max_seq_len + spatial_size**3, self.input_dim_before_seq)
-                    merged_state_dict["_qnet.module.pos_encoding"] = merged_pos_encoding
-                else:
-                    merged_state_dict["_qnet.module.pos_encoding"] = v
-            
-            elif k in merged_state_dict:
+            if k in merged_state_dict:
                 merged_state_dict[k] = v
-            # else:
-            #     if "_voxelizer" not in k:
-            #         logging.warning("key %s not found in checkpoint" % k)
-
+            else:
+                if "_voxelizer" not in k:
+                    logging.warning("key %s not found in checkpoint" % k)
         if not self._training:
+            # reshape voxelizer weights
             b = merged_state_dict["_voxelizer._ones_max_coords"].shape[0]
             merged_state_dict["_voxelizer._ones_max_coords"] = merged_state_dict[
                 "_voxelizer._ones_max_coords"
@@ -1222,186 +1241,6 @@ class QAttentionPerActBCAgent(Agent):
             ][0:1]
         self._q.load_state_dict(merged_state_dict)
         print("loaded weights from %s" % weight_file)
-
-    def load_weights_right(self, savedir: str):
-        device = (
-            self._device
-            if not self._training
-            else torch.device("cuda:%d" % self._device)
-        )
-
-        weight_file = os.path.join(savedir, "%s.pt" % self._name)
-        state_dict = torch.load(weight_file, map_location=device)
-        merged_state_dict = self._q.state_dict()
-
-        for k, v in state_dict.items():
-            if not self._training:
-                k = k.replace("_qnet.module", "_qnet")
-            # cross_attn
-            if k.startswith("_qnet.module.decoder_cross_attn"):
-                right_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_right")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_left")
-                merged_state_dict[left_key] = v
-            # trans_decoder
-            elif k.startswith("_qnet.module.trans_decoder"):
-                right_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.right_trans_decoder")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.left_trans_decoder")
-                merged_state_dict[left_key] = v
-            # dense0
-            elif k.startswith("_qnet.module.dense0"):
-                right_key = k.replace("_qnet.module.dense0", "_qnet.module.right_dense0")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.dense0", "_qnet.module.left_dense0")
-                merged_state_dict[left_key] = v
-            # dense1
-            elif k.startswith("_qnet.module.dense1"):
-                right_key = k.replace("_qnet.module.dense1", "_qnet.module.right_dense1")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.dense1", "_qnet.module.left_dense1")
-                merged_state_dict[left_key] = v
-            # collision
-            elif k.startswith("_qnet.module.rot_grip_collision_ff"):
-                right_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.right_rot_grip_collision_ff")
-                merged_state_dict[right_key] = v
-                
-                left_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.left_rot_grip_collision_ff")
-                merged_state_dict[left_key] = v
-            # proprio
-            elif k == '_qnet.module.proprio_preprocess.linear.weight':
-                new_v = torch.cat([v,v], dim=1)
-                merged_state_dict['_qnet.module.proprio_preprocess.linear.weight'] = new_v
-            # pos_with_lang
-            elif k == "_qnet.module.pos_encoding":
-                if v.shape[1] != 8077 or v.shape[1] != 8154:
-                    if self.use_skill:
-                        lang_max_seq_len = 154
-                    else:
-                        lang_max_seq_len = 77
-                spatial_size = v.shape[1]
-                input_dim_before_seq = v.shape[-1]
-                flattened_v = v.view(1, -1, input_dim_before_seq)  # (1, spatial_size**3, self.input_dim_before_seq)
-                new_pos_encoding = torch.randn(1, lang_max_seq_len, input_dim_before_seq, device=device)
-                merged_pos_encoding = torch.cat([flattened_v, new_pos_encoding], dim=1)  # (1, lang_max_seq_len + spatial_size**3, self.input_dim_before_seq)
-                merged_state_dict["_qnet.module.pos_encoding"] = merged_pos_encoding
-            
-            elif k in merged_state_dict:
-                merged_state_dict[k] = v
-            # else:
-            #     if "_voxelizer" not in k:
-            #         logging.warning("key %s not found in checkpoint" % k)
-
-        if not self._training:
-            b = merged_state_dict["_voxelizer._ones_max_coords"].shape[0]
-            merged_state_dict["_voxelizer._ones_max_coords"] = merged_state_dict[
-                "_voxelizer._ones_max_coords"
-            ][0:1]
-            flat_shape = merged_state_dict["_voxelizer._flat_output"].shape[0]
-            merged_state_dict["_voxelizer._flat_output"] = merged_state_dict[
-                "_voxelizer._flat_output"
-            ][0 : flat_shape // b]
-            merged_state_dict["_voxelizer._tiled_batch_indices"] = merged_state_dict[
-                "_voxelizer._tiled_batch_indices"
-            ][0:1]
-            merged_state_dict["_voxelizer._index_grid"] = merged_state_dict[
-                "_voxelizer._index_grid"
-            ][0:1]
-        self._q.load_state_dict(merged_state_dict)
-        print("loaded right weights from %s" % weight_file)
-
-    def load_weights_left(self, savedir: str):
-        device = (
-            self._device
-            if not self._training
-            else torch.device("cuda:%d" % self._device)
-        )
-
-        weight_file = os.path.join(savedir, "%s.pt" % self._name)
-        state_dict = torch.load(weight_file, map_location=device)
-        merged_state_dict = self._q.state_dict()
-
-        for k, v in state_dict.items():
-            if not self._training:
-                k = k.replace("_qnet.module", "_qnet")
-            # cross_attn
-            if k.startswith("_qnet.module.decoder_cross_attn"):
-                right_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_right")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.decoder_cross_attn", "_qnet.module.decoder_cross_attn_left")
-                merged_state_dict[left_key] = v
-            # trans_decoder
-            elif k.startswith("_qnet.module.trans_decoder"):
-                right_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.right_trans_decoder")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.trans_decoder", "_qnet.module.left_trans_decoder")
-                merged_state_dict[left_key] = v
-            # dense0
-            elif k.startswith("_qnet.module.dense0"):
-                right_key = k.replace("_qnet.module.dense0", "_qnet.module.right_dense0")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.dense0", "_qnet.module.left_dense0")
-                merged_state_dict[left_key] = v
-            # dense1
-            elif k.startswith("_qnet.module.dense1"):
-                right_key = k.replace("_qnet.module.dense1", "_qnet.module.right_dense1")
-                merged_state_dict[right_key] = v
-
-                left_key = k.replace("_qnet.module.dense1", "_qnet.module.left_dense1")
-                merged_state_dict[left_key] = v
-            # collision
-            elif k.startswith("_qnet.module.rot_grip_collision_ff"):
-                right_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.right_rot_grip_collision_ff")
-                merged_state_dict[right_key] = v
-                
-                left_key = k.replace("_qnet.module.rot_grip_collision_ff", "_qnet.module.left_rot_grip_collision_ff")
-                merged_state_dict[left_key] = v
-            # proprio
-            elif k == '_qnet.module.proprio_preprocess.linear.weight':
-                new_v = torch.cat([v,v], dim=1)
-                merged_state_dict['_qnet.module.proprio_preprocess.linear.weight'] = new_v
-            # pos_with_lang
-            elif k == "_qnet.module.pos_encoding":
-                lang_max_seq_len = 77
-                spatial_size = v.shape[1]
-                input_dim_before_seq = v.shape[-1]
-                flattened_v = v.view(1, -1, input_dim_before_seq)  # (1, spatial_size**3, self.input_dim_before_seq)
-                new_pos_encoding = torch.randn(1, lang_max_seq_len, input_dim_before_seq, device=device)
-                merged_pos_encoding = torch.cat([flattened_v, new_pos_encoding], dim=1)  # (1, lang_max_seq_len + spatial_size**3, self.input_dim_before_seq)
-                merged_state_dict["_qnet.module.pos_encoding"] = merged_pos_encoding
-            
-            elif k in merged_state_dict:
-                merged_state_dict[k] = v
-            # else:
-            #     if "_voxelizer" not in k:
-            #         logging.warning("key %s not found in checkpoint" % k)
-
-        if not self._training:
-            b = merged_state_dict["_voxelizer._ones_max_coords"].shape[0]
-            merged_state_dict["_voxelizer._ones_max_coords"] = merged_state_dict[
-                "_voxelizer._ones_max_coords"
-            ][0:1]
-            flat_shape = merged_state_dict["_voxelizer._flat_output"].shape[0]
-            merged_state_dict["_voxelizer._flat_output"] = merged_state_dict[
-                "_voxelizer._flat_output"
-            ][0 : flat_shape // b]
-            merged_state_dict["_voxelizer._tiled_batch_indices"] = merged_state_dict[
-                "_voxelizer._tiled_batch_indices"
-            ][0:1]
-            merged_state_dict["_voxelizer._index_grid"] = merged_state_dict[
-                "_voxelizer._index_grid"
-            ][0:1]
-        self._q.load_state_dict(merged_state_dict)
-        print("loaded left weights from %s" % weight_file)
-
-
 
     def save_weights(self, savedir: str):
         torch.save(self._q.state_dict(), os.path.join(savedir, "%s.pt" % self._name))

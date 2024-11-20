@@ -184,9 +184,6 @@ def create_bimanual_replay(
     )
     return replay_buffer
 
-
-
-
 def create_unimanual_replay(
     batch_size: int,
     timesteps: int,
@@ -487,7 +484,6 @@ def _add_keypoints_to_replay(
 
         others = {"demo": True}
         if robot_name == "bimanual":
-
             final_obs = {
                 "right_trans_action_indicies": right_trans_indicies,
                 "right_rot_grip_action_indicies": right_rot_grip_indicies,

@@ -77,6 +77,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
         self.no_skip_connection = no_skip_connection
         self.no_perceiver = no_perceiver
         self.no_language = no_language
+
         # patchified input dimensions
         spatial_size = voxel_size // self.voxel_patch_stride  # 100/5 = 20
 
@@ -91,7 +92,6 @@ class PerceiverVoxelLangEncoder(nn.Module):
         lang_feat_dim, lang_emb_dim, lang_max_seq_len = 1024, 512, 77
 
         # learnable positional encoding
-        # peract2 pos_encoding_with_lang = True / peract = Falses?
         if self.pos_encoding_with_lang:
             self.pos_encoding = nn.Parameter(
                 torch.randn(
@@ -157,7 +157,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
 
         # latent vectors (that are randomly initialized)
         self.latents = nn.Parameter(torch.randn(num_latents, latent_dim))
-        
+
         # encoder cross attention
         self.cross_attend_blocks = nn.ModuleList(
             [
@@ -196,15 +196,17 @@ class PerceiverVoxelLangEncoder(nn.Module):
         for i in range(depth):
             self.layers.append(
                 nn.ModuleList(
-                    [get_latent_attn(**cache_args), get_latent_ff(**cache_args), 
-                     get_latent_attn(**cache_args), get_latent_ff(**cache_args)]
+                    [
+                        get_latent_attn(**cache_args),
+                        get_latent_ff(**cache_args),
+                        get_latent_attn(**cache_args),
+                        get_latent_ff(**cache_args),
+                    ]
                 )
             )
 
-
         self.combined_latent_attn = get_latent_attn(**cache_args)
         self.combined_latent_ff = get_latent_ff(**cache_args)
-
 
         # decoder cross attention
         self.decoder_cross_attn_right = PreNorm(
@@ -406,36 +408,38 @@ class PerceiverVoxelLangEncoder(nn.Module):
         cross_attn, cross_ff_right, cross_ff_left = self.cross_attend_blocks
 
         for it in range(self.iterations):
-
             # encoder cross attention
             x = cross_attn(x, context=ins, mask=mask) + x
+
             # x.size() = [1, num_latents, latent_dim]
             x_right, x_left = x.chunk(2, dim=1)
-            # print(x.shape) # [B, 2048, 512]
-            # print(x_right.shape) # [B, 1024, 512]
+
             x_right = cross_ff_right(x_right) + x_right
             x_left = cross_ff_left(x_left) + x_left
 
             # self-attention layers
-            for self_attn_right, self_ff_right, self_attn_left, self_ff_left in self.layers:
-
+            for (
+                self_attn_right,
+                self_ff_right,
+                self_attn_left,
+                self_ff_left,
+            ) in self.layers:
                 x_right = self_attn_right(x_right) + x_right
                 x_right = self_ff_right(x_right) + x_right
 
                 x_left = self_attn_left(x_left) + x_left
                 x_left = self_ff_left(x_left) + x_left
 
-            
             x = torch.concat([x_right, x_left], dim=1)
             x = self.combined_latent_attn(x) + x
             x = self.combined_latent_ff(x) + x
-            print(x.shape) # [2,2048,512]
+
         x_right, x_left = x.chunk(2, dim=1)
 
         # decoder cross attention
         latents_right = self.decoder_cross_attn_right(ins, context=x_right)
         latents_left = self.decoder_cross_attn_left(ins, context=x_left)
-        print(latents_right.shape) #[2,8077,128]
+
         # crop out the language part of the output sequence
         if self.lang_fusion_type == "seq":
             latents_right = latents_right[:, l.shape[1] :]
@@ -445,7 +449,9 @@ class PerceiverVoxelLangEncoder(nn.Module):
         latents_right = latents_right.view(
             b, *queries_orig_shape[1:-1], latents_right.shape[-1]
         )  # [B,20,20,20,64]
-        latents_right = rearrange(latents_right, "b ... d -> b d ...")  # [B,64,20,20,20]
+        latents_right = rearrange(
+            latents_right, "b ... d -> b d ..."
+        )  # [B,64,20,20,20]
 
         # reshape back to voxel grid
         latents_left = latents_left.view(
@@ -458,12 +464,17 @@ class PerceiverVoxelLangEncoder(nn.Module):
         feats_right = feats.copy()
         feats_left = feats
 
-
         feats_right.extend(
-            [self.ss1(latents_right.contiguous()), self.global_maxp(latents_right).view(b, -1)]
+            [
+                self.ss1(latents_right.contiguous()),
+                self.global_maxp(latents_right).view(b, -1),
+            ]
         )
         feats_left.extend(
-            [self.ss1(latents_left.contiguous()), self.global_maxp(latents_left).view(b, -1)]
+            [
+                self.ss1(latents_left.contiguous()),
+                self.global_maxp(latents_left).view(b, -1),
+            ]
         )
 
         # upsample
@@ -489,7 +500,10 @@ class PerceiverVoxelLangEncoder(nn.Module):
         rot_and_grip_out = None
         if self.num_rotation_classes > 0:
             feats_right.extend(
-                [self.ss_final(u_right.contiguous()), self.global_maxp(u_right).view(b, -1)]
+                [
+                    self.ss_final(u_right.contiguous()),
+                    self.global_maxp(u_right).view(b, -1),
+                ]
             )
 
             right_dense0 = self.right_dense0(torch.cat(feats_right, dim=1))
@@ -506,7 +520,10 @@ class PerceiverVoxelLangEncoder(nn.Module):
             ]
 
             feats_left.extend(
-                [self.ss_final(u_left.contiguous()), self.global_maxp(u_left).view(b, -1)]
+                [
+                    self.ss_final(u_left.contiguous()),
+                    self.global_maxp(u_left).view(b, -1),
+                ]
             )
 
             left_dense0 = self.left_dense0(torch.cat(feats_left, dim=1))
