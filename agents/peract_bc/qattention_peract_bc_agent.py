@@ -21,7 +21,6 @@ from yarr.agents.agent import (
 from helpers import utils
 from helpers.utils import visualise_voxel, stack_on_channel
 from voxel.voxel_grid import VoxelGrid
-from voxel.augmentation import apply_se3_augmentation
 from einops import rearrange
 from helpers.clip.core.clip import build_model, load_clip
 
@@ -49,7 +48,7 @@ class QFunction(nn.Module):
 
         # distributed training
         if training:
-            self._qnet = DDP(self._qnet, device_ids=[device])
+            self._qnet = DDP(self._qnet, device_ids=[device], find_unused_parameters=True)
 
     def _argmax_3d(self, tensor_orig):
         b, c, d, h, w = tensor_orig.shape  # c will be one
@@ -90,6 +89,7 @@ class QFunction(nn.Module):
         bounds=None,
         prev_bounds=None,
         prev_layer_voxel_grid=None,
+        arm=None,
     ):
         # rgb_pcd will be list of list (list of [rgb, pcd])
         b = rgb_pcd[0][0].shape[0]
@@ -123,6 +123,7 @@ class QFunction(nn.Module):
             prev_layer_voxel_grid,
             bounds,
             prev_bounds,
+            arm=arm,
         )
 
         return q_trans, q_rot_and_grip, q_ignore_collisions, voxel_grid
@@ -160,6 +161,8 @@ class QAttentionPerActBCAgent(Agent):
         optimizer_type: str = "adam",
         num_devices: int = 1,
         checkpoint_name_prefix=None,
+        anybimanual = False,
+        aug_type = "standard",
     ):
         self._layer = layer
         self._coordinate_bounds = coordinate_bounds
@@ -198,6 +201,9 @@ class QAttentionPerActBCAgent(Agent):
         self._cross_entropy_loss = nn.CrossEntropyLoss(reduction="none")
         checkpoint_name_prefix = checkpoint_name_prefix or "QAttentionAgent"
         self._name = f"{checkpoint_name_prefix}_layer_{self._layer}"
+        self.anybimanual = anybimanual
+        self.aug_type = aug_type
+
 
     def build(self, training: bool, device: torch.device = None):
         self._training = training
@@ -455,26 +461,46 @@ class QAttentionPerActBCAgent(Agent):
             proprio = replay_sample["low_dim_state"]
 
         obs, pcd = self._preprocess_inputs(replay_sample)
-
+        if proprio.shape[-1] == 4:
+            arm = "right"
+        else:
+            arm = "left"
         # batch size
         bs = pcd[0].shape[0]
 
         # SE(3) augmentation of point clouds and actions
         if self._transform_augmentation:
-            action_trans, action_rot_grip, pcd = apply_se3_augmentation(
-                pcd,
-                action_gripper_pose,
-                action_trans,
-                action_rot_grip,
-                bounds,
-                self._layer,
-                self._transform_augmentation_xyz,
-                self._transform_augmentation_rpy,
-                self._transform_augmentation_rot_resolution,
-                self._voxel_size,
-                self._rotation_resolution,
-                self._device,
-            )
+            from voxel import augmentation, augmentation_ab
+            if self.aug_type == "ab":
+                action_trans, action_rot_grip, pcd = augmentation_ab.apply_se3_augmentation(
+                    pcd,
+                    action_gripper_pose,
+                    action_trans,
+                    action_rot_grip,
+                    bounds,
+                    self._layer,
+                    self._transform_augmentation_xyz,
+                    self._transform_augmentation_rpy,
+                    self._transform_augmentation_rot_resolution,
+                    self._voxel_size,
+                    self._rotation_resolution,
+                    self._device,
+                )
+            else:
+                action_trans, action_rot_grip, pcd = augmentation.apply_se3_augmentation(
+                    pcd,
+                    action_gripper_pose,
+                    action_trans,
+                    action_rot_grip,
+                    bounds,
+                    self._layer,
+                    self._transform_augmentation_xyz,
+                    self._transform_augmentation_rpy,
+                    self._transform_augmentation_rot_resolution,
+                    self._voxel_size,
+                    self._rotation_resolution,
+                    self._device,
+                )
 
         # forward pass
         q_trans, q_rot_grip, q_collision, voxel_grid = self._q(
@@ -486,6 +512,7 @@ class QAttentionPerActBCAgent(Agent):
             bounds,
             prev_layer_bounds,
             prev_layer_voxel_grid,
+            arm=arm,
         )
 
         # argmax to choose best action
@@ -765,7 +792,11 @@ class QAttentionPerActBCAgent(Agent):
                 ),
             )
         ]
-
+    def concat_weights(self, param, target_size, dims=-1):
+        if param.size(-1) < target_size:
+            param = torch.cat([param, param], dims)
+        return param
+    
     def load_weights(self, savedir: str):
         device = (
             self._device
@@ -777,14 +808,59 @@ class QAttentionPerActBCAgent(Agent):
 
         # load only keys that are in the current model
         merged_state_dict = self._q.state_dict()
-        for k, v in state_dict.items():
-            if not self._training:
-                k = k.replace("_qnet.module", "_qnet")
-            if k in merged_state_dict:
-                merged_state_dict[k] = v
-            else:
-                if "_voxelizer" not in k:
-                    logging.warning("key %s not found in checkpoint" % k)
+        if not self._training:
+            for k, v in state_dict.items():
+                if not self._training:
+                    k = k.replace("_qnet.module", "_qnet")
+                if k in merged_state_dict:
+                    merged_state_dict[k] = v
+                else:
+                    if "_voxelizer" not in k:
+                        logging.warning("key %s not found in checkpoint" % k)
+        else:
+            for k, v in state_dict.items():
+                if not self._training:
+                    k = k.replace("_qnet.module", "_qnet")
+                elif k == "_qnet.module.pos_encoding":
+                    if (v.shape[1] != 8077 or v.shape[1] != 8154) and v.shape[1] < 154:
+                        if self.anybimanual:
+                            lang_max_seq_len = 154
+                        else:
+                            lang_max_seq_len = 77
+                        spatial_size = v.shape[1]
+                        input_dim_before_seq = v.shape[-1]
+                        flattened_v = v.view(1, -1, input_dim_before_seq)  # (1, spatial_size**3, self.input_dim_before_seq)
+                        new_pos_encoding = torch.randn(1, lang_max_seq_len, input_dim_before_seq, device=device)
+                        merged_pos_encoding = torch.cat([flattened_v, new_pos_encoding], dim=1)  # (1, lang_max_seq_len + spatial_size**3, self.input_dim_before_seq)
+                        merged_state_dict["_qnet.module.pos_encoding"] = merged_pos_encoding
+                    else:
+                        merged_state_dict["_qnet.module.pos_encoding"] = v
+                elif k.startswith("_qnet.module.cross_attend_blocks"):
+                    if self.anybimanual:
+                        if v.size(-1) == 128:
+                            merged_state_dict[k] = self.concat_weights(v, 256)
+                elif k.startswith("_qnet.module.decoder_cross_attn"):
+                    if self.anybimanual:
+                        if v.size(0) == 128:
+                            merged_state_dict[k] = self.concat_weights(v, 256, 0)
+                            merged_state_dict[k] = self.concat_weights(v, 256, 0)
+                        if v.size(-1) == 128:
+                            merged_state_dict[k] = self.concat_weights(v, 256)
+                            merged_state_dict[k] = self.concat_weights(v, 256)
+                elif k == "_qnet.module.up0.conv_up.0.conv3d.weight":
+                    if self.anybimanual:
+                        if v.size(1) == 128:
+                            merged_state_dict[k] = self.concat_weights(v, 256, 1)
+                elif k.startswith("_qnet.module.dense0"):
+                    if self.anybimanual:
+                        if v.size(-1) == 1024:
+                            merged_state_dict[k] = torch.cat([v, v[:, :512]], dim=-1)
+                elif k in merged_state_dict:
+                    merged_state_dict[k] = v
+                else:
+                    if "_voxelizer" not in k:
+                        logging.warning("key %s not found in checkpoint" % k)
+
         if not self._training:
             # reshape voxelizer weights
             b = merged_state_dict["_voxelizer._ones_max_coords"].shape[0]

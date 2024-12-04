@@ -7,7 +7,7 @@ from torch import nn
 
 from einops import rearrange
 from einops import repeat
-
+import torch.nn.functional as F
 from perceiver_pytorch.perceiver_pytorch import cache_fn
 from perceiver_pytorch.perceiver_pytorch import PreNorm, FeedForward, Attention
 
@@ -17,7 +17,23 @@ from helpers.network_utils import (
     Conv3DBlock,
     Conv3DUpsampleBlock,
 )
+def symmetric_kl_divergence(left, right):
+    eps = 1e-2
+    left_prob = torch.clamp(F.log_softmax(left, dim=-1), min=-10, max=10)
+    right_prob = torch.clamp(F.log_softmax(right, dim=-1), min=-10, max=10)
 
+    kl_left_to_right = F.kl_div(left_prob, right_prob.exp(), reduction="batchmean")*eps
+    kl_right_to_left = F.kl_div(right_prob, left_prob.exp(), reduction="batchmean")*eps
+
+    symmetric_kl = -(kl_left_to_right + kl_right_to_left) / 2.0
+    return symmetric_kl
+
+def l1_norm(tensor):
+    return torch.sum(torch.abs(tensor)) + 1e-4 * torch.norm(tensor)
+
+def l2_1_norm(tensor):
+    l2_norm_per_skill = torch.norm(tensor, dim=-1)
+    return torch.sum(l2_norm_per_skill)
 
 # PerceiverIO adapted for 6-DoF manipulation
 class PerceiverVoxelLangEncoder(nn.Module):
@@ -53,7 +69,9 @@ class PerceiverVoxelLangEncoder(nn.Module):
         no_perceiver=False,
         no_language=False,
         final_dim=64,
-        predictor=False,
+        anybimanual=False,
+        skill_manager=None,
+        visual_aligner=None,
     ):
         super().__init__()
         self.depth = depth
@@ -78,7 +96,9 @@ class PerceiverVoxelLangEncoder(nn.Module):
         self.no_skip_connection = no_skip_connection
         self.no_perceiver = no_perceiver
         self.no_language = no_language
-        self.predictor = predictor
+        self.anybimanual = anybimanual
+        self.skill_manager = skill_manager
+        self.visual_aligner = visual_aligner
         # patchified input dimensions
         spatial_size = voxel_size // self.voxel_patch_stride  # 100/5 = 20
 
@@ -88,12 +108,17 @@ class PerceiverVoxelLangEncoder(nn.Module):
             if self.lang_fusion_type == "concat"
             else self.im_channels * 2
         )
-
+        if self.anybimanual:
+            self.input_dim_before_seq_ = self.input_dim_before_seq*2
+        else:
+            self.input_dim_before_seq_ = self.input_dim_before_seq
         # CLIP language feature dimensions
-        if self.predictor:
+        if self.anybimanual:
             lang_feat_dim, lang_emb_dim, lang_max_seq_len = 1024, 512, 154
         else:
             lang_feat_dim, lang_emb_dim, lang_max_seq_len = 1024, 512, 77
+        
+        self.lang_max_seq_len = lang_max_seq_len
         # learnable positional encoding
         if self.pos_encoding_with_lang:
             self.pos_encoding = nn.Parameter(
@@ -168,12 +193,12 @@ class PerceiverVoxelLangEncoder(nn.Module):
                     latent_dim,
                     Attention(
                         latent_dim,
-                        self.input_dim_before_seq,
+                        self.input_dim_before_seq_,
                         heads=cross_heads,
                         dim_head=cross_dim_head,
                         dropout=input_dropout,
                     ),
-                    context_dim=self.input_dim_before_seq,
+                    context_dim=self.input_dim_before_seq_,
                 ),
                 PreNorm(latent_dim, FeedForward(latent_dim)),
             ]
@@ -204,9 +229,9 @@ class PerceiverVoxelLangEncoder(nn.Module):
 
         # decoder cross attention
         self.decoder_cross_attn = PreNorm(
-            self.input_dim_before_seq,
+            self.input_dim_before_seq_,
             Attention(
-                self.input_dim_before_seq,
+                self.input_dim_before_seq_,
                 latent_dim,
                 heads=cross_heads,
                 dim_head=cross_dim_head,
@@ -217,7 +242,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
 
         # upsample conv
         self.up0 = Conv3DUpsampleBlock(
-            self.input_dim_before_seq,
+            self.input_dim_before_seq_,
             self.final_dim,
             kernel_sizes=self.voxel_patch_size,
             strides=self.voxel_patch_stride,
@@ -227,10 +252,10 @@ class PerceiverVoxelLangEncoder(nn.Module):
 
         # 2nd 3D softmax
         self.ss1 = SpatialSoftmax3D(
-            spatial_size, spatial_size, spatial_size, self.input_dim_before_seq
+            spatial_size, spatial_size, spatial_size, self.input_dim_before_seq_
         )
 
-        flat_size += self.input_dim_before_seq * 4
+        flat_size += self.input_dim_before_seq_ * 4
 
         # final 3D softmax
         self.final = Conv3DBlock(
@@ -292,6 +317,7 @@ class PerceiverVoxelLangEncoder(nn.Module):
         bounds,
         prev_layer_bounds,
         mask=None,
+        arm=None,
     ):
         # preprocess input
         d0 = self.input_preprocess(ins)  # [B,10,100,100,100] -> [B,64,100,100,100]
@@ -353,16 +379,43 @@ class PerceiverVoxelLangEncoder(nn.Module):
         # rearrange input to be channel last
         ins = rearrange(ins, "b ... d -> b (...) d")  # [B,8000,128]
         ins_wo_prev_layers = ins
-
         # option 2: add lang token embs as a sequence
-        if self.lang_fusion_type == "seq":
-            l = self.lang_preprocess(lang_token_embs)  # [B,77,1024] -> [B,77,128]
-            ins = torch.cat((l, ins), dim=1)  # [B,8077,128]
+        if self.anybimanual:
+            l = self.lang_preprocess(lang_token_embs)  # [B,77,512] -> [B,77,128]
+            mask_right, mask_left = self.visual_aligner(ins)
+            L_voxel = symmetric_kl_divergence(mask_left, mask_right)
+            right_skill = self.skill_manager(mask_right, l)
+            left_skill = self.skill_manager(mask_left, l)
+            right_skill = self.lang_preprocess(right_skill)
+            left_skill = self.lang_preprocess(left_skill)
+            L_skill = (
+                l1_norm(left_skill) + l1_norm(right_skill) + 
+                0.01 * (l2_1_norm(left_skill) + l2_1_norm(right_skill))
+            )
+            l_right = torch.cat((right_skill, l), dim=1)
+            ins_right = torch.cat((l_right, mask_right), dim=1)
+            l_left = torch.cat((left_skill, l), dim=1)
+            ins_left = torch.cat((l_left, mask_left), dim=1)
+            if arm == "right":
+                skill = right_skill
+                ins_ = ins_right
+            else:
+                skill = left_skill
+                ins_ = ins_left
+            if self.pos_encoding_with_lang:
+                ins_ = ins_ + self.pos_encoding
+        else:
+            if self.lang_fusion_type == "seq":
+                l = self.lang_preprocess(lang_token_embs)  # [B,77,1024] -> [B,77,128]
+                ins = torch.cat((l, ins), dim=1)  # [B,8077,128]
+            # add pos encoding to language + flattened grid (the recommended way)
+            if self.pos_encoding_with_lang:
+                ins = ins + self.pos_encoding
 
-        # add pos encoding to language + flattened grid (the recommended way)
-        if self.pos_encoding_with_lang:
-            ins = ins + self.pos_encoding
-
+        if self.anybimanual:
+            skill_l = torch.cat((skill, l), dim=1)
+            ins = torch.cat((skill_l, ins),dim=1)
+            ins = torch.cat((ins_, ins),dim=2)
         # batchify latents
         x = repeat(self.latents, "n d -> b n d", b=b)
 
@@ -380,10 +433,9 @@ class PerceiverVoxelLangEncoder(nn.Module):
 
         # decoder cross attention
         latents = self.decoder_cross_attn(ins, context=x)
-
         # crop out the language part of the output sequence
         if self.lang_fusion_type == "seq":
-            latents = latents[:, l.shape[1] :]
+            latents = latents[:, self.lang_max_seq_len :]
 
         # reshape back to voxel grid
         latents = latents.view(

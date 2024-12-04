@@ -527,7 +527,6 @@ def _add_keypoints_to_replay(
     replay.add_final(**obs_dict_tp1)
 
 def check_if_replay_exists(task: str, d_idx: int, replay_path: str):
-    # 假设 replay 文件按任务名称和 demo 索引保存
     replay_file = os.path.join(replay_path, f"{task}_replay_{d_idx}.pkl")
     return os.path.exists(replay_file)
 

@@ -1,7 +1,6 @@
 wandb/
 log/
 log_single/
-scripts_run/
 outputs/
 # Byte-compiled / optimized / DLL files
 __pycache__/

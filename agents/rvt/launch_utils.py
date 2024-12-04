@@ -13,12 +13,12 @@ import wandb
 from torch.nn.parallel import DistributedDataParallel as DDP
 import pickle
 from helpers.preprocess_agent import PreprocessAgent
-from rvt.models.option_selector import OptionSelector
-from rvt.models.perception_manager import Perception
+from agents.rvt.rvt.models.skill_manager import SkillManager
+from agents.rvt.rvt.models.visual_aligner import VisualAligner
 
-from rvt.mvt.mvt import MVT
-from rvt.models import rvt_agent
-from rvt.utils.peract_utils import (
+from agents.rvt.rvt.mvt.mvt import MVT
+from agents.rvt.rvt.models import rvt_agent
+from agents.rvt.rvt.utils.peract_utils import (
     CAMERAS,
     SCENE_BOUNDS,
     IMAGE_SIZE,
@@ -26,10 +26,10 @@ from rvt.utils.peract_utils import (
 )
 
 
-import rvt.config as exp_cfg_mod
-import rvt.models.rvt_agent as rvt_agent
-import rvt.mvt.config as mvt_cfg_mod
-
+import agents.rvt.rvt.config as exp_cfg_mod
+import agents.rvt.rvt.models.rvt_agent as rvt_agent
+import agents.rvt.rvt.mvt.config as mvt_cfg_mod
+import os
 
 def create_agent(cfg: DictConfig):
 
@@ -43,7 +43,10 @@ def create_agent(cfg: DictConfig):
     mvt_cfg.proprio_dim = cfg.method.low_dim_size
     mvt_cfg.freeze()
 
-    with open("/mnt/disk_1/tengbo/peract_bimanual/lang_token.pkl", "rb") as f:
+    current_dir = os.path.dirname(os.path.abspath(__file__)) 
+    pkl_path = os.path.join(current_dir, "../../lang_token.pkl")
+    pkl_path = os.path.abspath(pkl_path)
+    with open(pkl_path, "rb") as f:
         embeddings_dict = pickle.load(f)
     flattened_embeddings = []
     for key in embeddings_dict.keys():
@@ -51,9 +54,9 @@ def create_agent(cfg: DictConfig):
         flattened_embedding = embedding.view(-1) 
         flattened_embeddings.append(flattened_embedding)
     embeddings_matrix = torch.stack(flattened_embeddings)  
-    option_selector = OptionSelector(num_classes=18,embedding_matrix=embeddings_matrix)
-    perception = Perception()
-    agent = RVTAgentWrapper(cfg.framework.checkpoint_name_prefix, cfg.rlbench, mvt_cfg, exp_cfg, option_selector, perception)
+    skill_manager = SkillManager(num_classes=18,embedding_matrix=embeddings_matrix)
+    visual_aligner = VisualAligner()
+    agent = RVTAgentWrapper(cfg.framework.checkpoint_name_prefix, cfg.rlbench, mvt_cfg, exp_cfg, skill_manager, visual_aligner)
 
 
     preprocess_agent = PreprocessAgent(pose_agent=agent)
@@ -63,15 +66,15 @@ def create_agent(cfg: DictConfig):
 
 class RVTAgentWrapper(Agent):
 
-    def __init__(self, checkpoint_name_prefix, rlbench_cfg, mvt_cfg, exp_cfg, option_selector, perception):
+    def __init__(self, checkpoint_name_prefix, rlbench_cfg, mvt_cfg, exp_cfg, skill_manager, visual_aligner):
         self._checkpoint_filename = f"{checkpoint_name_prefix}.pt"
         self.rvt_agent = None
         self.rlbench_cfg = rlbench_cfg
         self.mvt_cfg = mvt_cfg
         self.exp_cfg = exp_cfg
         self._summaries = {}
-        self.option_selector = option_selector
-        self.perception = perception
+        self.skill_manager = skill_manager
+        self.visual_aligner = visual_aligner
         
     def build(self, training: bool, device=None) -> None:
 
@@ -94,8 +97,8 @@ class RVTAgentWrapper(Agent):
         self.rvt_agent = rvt_agent.RVTAgent(
             network=rvt,
             #image_resolution=self.rlbench_cfg.camera_resolution,
-            option_selector=self.option_selector,
-            perception=self.perception,
+            skill_manager=self.skill_manager,
+            visual_aligner=self.visual_aligner,
             stage_two=False,
             add_lang=self.mvt_cfg.add_lang,
             scene_bounds=self.rlbench_cfg.scene_bounds,
@@ -173,17 +176,14 @@ class RVTAgentWrapper(Agent):
         weight_file = os.path.join(savedir, self._checkpoint_filename)
         state_dict = torch.load(weight_file, map_location=device)
 
-        skill = self.rvt_agent.option_selector
-        perception = self.rvt_agent.perception_manager
+        skill = self.rvt_agent.skill_manager
+        visual_aligner = self.rvt_agent.visual_aligner
         model = self.rvt_agent._network
         optimizer = self.rvt_agent._optimizer
         lr_sched = self.rvt_agent._lr_sched
 
         if isinstance(model, DDP):
-            model = model.module
-        # if state_dict["skill_state"]:
-        #     skill.load_state_dict(state_dict["skill_state"])
-        #     perception.load_state_dict(state_dict["perception_state"])  
+            model = model.module 
         model.load_state_dict(state_dict["model_state"])
         optimizer.load_state_dict(state_dict["optimizer_state"])
         lr_sched.load_state_dict(state_dict["lr_sched_state"])
@@ -194,11 +194,9 @@ class RVTAgentWrapper(Agent):
     def save_weights(self, savedir: str) -> None:
 
         os.makedirs(savedir, exist_ok=True)
-
         weight_file = os.path.join(savedir, self._checkpoint_filename)
-
-        skill = self.rvt_agent.option_selector
-        perception = self.rvt_agent.perception_manager
+        skill = self.rvt_agent.skill_manager
+        visual_aligner = self.rvt_agent.visual_aligner
         model = self.rvt_agent._network
         optimizer = self.rvt_agent._optimizer
         lr_sched = self.rvt_agent._lr_sched
@@ -207,13 +205,13 @@ class RVTAgentWrapper(Agent):
             model = model.module
         
         skill_state = skill.state_dict()
-        perception_state = perception.state_dict()
+        visual_aligner_state = visual_aligner.state_dict()
         model_state = model.state_dict()
 
         torch.save(
             {
                 "skill_state": skill_state,
-                "perception_state": perception_state,
+                "visual_aligner_state": visual_aligner_state,
                 "model_state": model_state,
                 "optimizer_state": optimizer.state_dict(),
                 "lr_sched_state": lr_sched.state_dict(),

@@ -1,6 +1,5 @@
 import logging
 from typing import List
-
 import numpy as np
 from rlbench.demo import Demo
 import omegaconf
@@ -40,6 +39,7 @@ def _is_stopped_left(demo, i, obs, delta=0.1):
 
 
 def _keypoint_discovery_bimanual(demo: Demo, stopping_delta=0.1) -> List[int]:
+    # stopping_delta=0.0005
     episode_keypoints = []
     right_prev_gripper_open = demo[0].right.gripper_open
     left_prev_gripper_open = demo[0].left.gripper_open

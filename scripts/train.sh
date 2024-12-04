@@ -22,8 +22,6 @@ train_demo_path="/mnt/disk_1/tengbo/bimanual_data/train"
 addition_info="$(date +%Y%m%d)"
 exp_name=${4:-"${method}_${addition_info}"}
 logdir="/mnt/disk_1/tengbo/peract_bimanual/log"
-instructions="/mnt/disk_1/tengbo/peract_bimanual/18_lang_template.pkl"
-# replay_path="/mnt/disk_1/tengbo/replay/"
 
 # create a tmux window for training
 echo "I am going to kill the session ${exp_name}, are you sure? (5s)"
@@ -33,50 +31,20 @@ sleep 3s
 echo "start new tmux session: ${exp_name}, running main.py"
 tmux new-session -d -s ${exp_name}
 
-#######
-# override hyper-params in config.yaml
-#######
-# batch_size=2
-# skill_predictor=False
-
-# 2 for peract2 and 6 for rvt
 batch_size=2
-skill_predictor=True
-prefix=True
-
-# task_name=${"multi_${addition_info}"}
-
-
-######## Revise frequently
-load_existing_weights=False
-use_pre=False
-frozen=False
-
-
-# 13 tasks in total, without (e)put_item_in_drawer now
+anybimanual=True
+augmentation_type="ab"
 # tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-# demo=100
-# episode_length=25
-# save_freq=5000
-# log_freq=100
-# task_folder="multi"
-# replay_path="/mnt/disk_2/tengbo/replay/"
-# training_iterations=100001
-
-
-
-# # for debug
-# tasks=[bimanual_pick_laptop,bimanual_pick_plate,bimanual_straighten_rope,coordinated_lift_ball,coordinated_lift_tray,coordinated_push_box,coordinated_put_bottle_in_fridge,dual_push_buttons,handover_item,bimanual_sweep_to_dustpan,coordinated_take_tray_out_of_oven,handover_item_easy]
-tasks=[handover_item]
-demo=20
-episode_length=4
-save_freq=100
-log_freq=10
-wandb_project="debug"
+tasks=[bimanual_pick_plate]
+demo=100
+episode_length=25
+save_freq=10000
+log_freq=1000
 task_folder="multi"
-replay_path="/mnt/disk_2/tengbo/replay_debug/"
-training_iterations=50000
-#########
+replay_path="/mnt/disk_2/tengbo/replay/"
+training_iterations=100001
+
+wandb_project="debug"
 
 tmux select-pane -t 0 
 tmux send-keys "conda activate per2; 
@@ -95,17 +63,15 @@ CUDA_VISIBLE_DEVICES=${train_gpu} python train.py method=$method \
         rlbench.demos=${demo} \
         rlbench.episode_length=${episode_length} \
         framework.save_freq=${save_freq} \
-        framework.load_existing_weights=${load_existing_weights} \
         framework.wandb_project=${wandb_project} \
-        framework.use_pretrained=${use_pre} \
-        framework.use_skill=${skill_predictor} \
         replay.path=${replay_path} \
         replay.task_folder=${task_folder} \
         rlbench.instructions=${instructions} \
         framework.log_freq=${log_freq} \
-        framework.use_prefix=${prefix} \
         framework.training_iterations=${training_iterations} \
-        framework.frozen=${frozen}
+        framework.frozen=${frozen} \
+        framework.anybimanual=${anybimanual} \
+        framework.augmentation_type=${augmentation_type}
 "
 # remove 0.ckpt
 # rm -rf logs/${exp_name}/seed${seed}/weights/0

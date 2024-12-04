@@ -9,9 +9,9 @@ from yarr.agents.agent import LeaderFollowerAgent
 from yarr.agents.agent import Agent
 
 
-supported_agents = {"leader_follower": ("PERACT_BC", "RVT"), 
-                    "independent" : ("PERACT_BC", "RVT"),
-                    "bimanual": ("BIMANUAL_PERACT", "ACT_BC_LANG"),
+supported_agents = {"leader_follower": ("PERACT_BC", "RVT", "DIFFUSER_ACTOR"), 
+                    "independent" : ("PERACT_BC", "RVT", "DIFFUSER_ACTOR"),
+                    "bimanual": ("BIMANUAL_PERACT", "ACT_BC_LANG", "ANY_BIMANUAL"),
                     "unimanual": ()}
 
 
@@ -82,7 +82,15 @@ def agent_fn_by_name(method_name: str) -> Agent:
         from agents import peract_bc
 
         return peract_bc.launch_utils.create_agent    
+    elif method_name.startswith("DIFFUSER_ACTOR"):
+        from agents import diffuser_actor
+
+        return diffuser_actor.launch_utils.create_agent
     elif method_name.startswith("BIMANUAL_PERACT"):
+        from agents import bimanual_peract1
+        
+        return bimanual_peract1.launch_utils.create_agent
+    elif method_name.startswith("ANY_BIMANUAL"):
         from agents import peract_bimanual
         
         return peract_bimanual.launch_utils.create_agent

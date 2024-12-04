@@ -54,6 +54,8 @@ framework:
     use_pretrained: False
     use_prefix: False
     frozen: False
+    anybimanual: False
+    augmentation_type: "standard"
 
 defaults:
     - method: PERACT_BC

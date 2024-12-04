@@ -179,10 +179,7 @@ def run_seed(
         print(replay_path)
         if os.path.exists(replay_path) and os.listdir(replay_path):
             print("Replay files found. Loading...")
-            # 初始化 Replay Buffer
-            # replay_buffer = TaskUniformReplayBuffer()
             replay_buffer = replay_utils.create_replay(cfg, replay_path)
-            # 加载所有的 Replay 文件
             replay_files = [os.path.join(replay_path, f) for f in os.listdir(replay_path) if f.endswith('.replay')]
             for replay_file in tqdm(replay_files, desc="Processing files"):
                 with open(replay_file, 'rb') as f:
@@ -191,11 +188,6 @@ def run_seed(
                         replay_buffer.load_add(replay_data)
                     except pickle.UnpicklingError as e:
                         print(f"Error unpickling file {replay_file}: {e}")
-                    # try:
-                    #     replay_data = pickle.load(f) 
-                    #     replay_buffer.load_add(replay_data)
-                    # except UnicodeDecodeError as e:
-                    #     print(f"Error loading replay file: {replay_file} - {e}")
         else:
             print("No replay files found. Creating replay...")
             replay_buffer = replay_utils.create_replay(cfg, replay_path)

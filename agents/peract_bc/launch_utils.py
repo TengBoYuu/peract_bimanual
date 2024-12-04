@@ -7,8 +7,12 @@ from helpers.preprocess_agent import PreprocessAgent
 from agents.peract_bc.perceiver_lang_io import PerceiverVoxelLangEncoder
 from agents.peract_bc.qattention_peract_bc_agent import QAttentionPerActBCAgent
 from agents.peract_bc.qattention_stack_agent import QAttentionStackAgent
-
+import pickle
+import torch
+from agents.peract_bc.skill_manager import SkillManager
+from agents.peract_bc.visual_aligner import VisualAligner
 from omegaconf import DictConfig
+import os
 
 
 def create_agent(cfg: DictConfig):
@@ -18,6 +22,21 @@ def create_agent(cfg: DictConfig):
 
     num_rotation_classes = int(360.0 // cfg.method.rotation_resolution)
     qattention_agents = []
+
+    current_dir = os.path.dirname(os.path.abspath(__file__)) 
+    pkl_path = os.path.join(current_dir, "../../lang_token.pkl")
+    pkl_path = os.path.abspath(pkl_path)
+    with open(pkl_path, "rb") as f:
+        embeddings_dict = pickle.load(f)
+    flattened_embeddings = []
+    for key in embeddings_dict.keys():
+        embedding = torch.tensor(embeddings_dict[key]) 
+        flattened_embedding = embedding.view(-1) 
+        flattened_embeddings.append(flattened_embedding)
+    embeddings_matrix = torch.stack(flattened_embeddings) 
+    skill_manager = SkillManager(num_classes=18,embedding_matrix=embeddings_matrix)
+    visual_aligner = VisualAligner() 
+
     for depth, vox_size in enumerate(cfg.method.voxel_sizes):
         last = depth == len(cfg.method.voxel_sizes) - 1
         perceiver_encoder = PerceiverVoxelLangEncoder(
@@ -50,6 +69,9 @@ def create_agent(cfg: DictConfig):
             no_perceiver=cfg.method.no_perceiver,
             no_language=cfg.method.no_language,
             final_dim=cfg.method.final_dim,
+            anybimanual=cfg.framework.anybimanual,
+            skill_manager = skill_manager,
+            visual_aligner = visual_aligner
         )
 
         qattention_agent = QAttentionPerActBCAgent(
@@ -82,6 +104,8 @@ def create_agent(cfg: DictConfig):
             optimizer_type=cfg.method.optimizer,
             num_devices=cfg.ddp.num_devices,
             checkpoint_name_prefix=cfg.framework.checkpoint_name_prefix,
+            anybimanual=cfg.framework.anybimanual,
+            aug_type=cfg.framework.augmentation_type,
         )
         qattention_agents.append(qattention_agent)
 
